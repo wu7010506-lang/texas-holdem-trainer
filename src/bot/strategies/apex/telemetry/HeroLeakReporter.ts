@@ -103,6 +103,23 @@ export class HeroLeakReporter {
       });
     }
 
+    // 6. Preflop All-In Maniac Over-shoving
+    const shoveOpps = model.preflopAllInShove.opportunities;
+    const shoveCount = model.preflopAllInShove.count;
+    const shoveRate = getPosteriorRate(model.preflopAllInShove);
+    if (shoveCount >= 2 || (shoveOpps >= 3 && shoveRate > 0.15)) {
+      leaks.push({
+        id: 'PREFLOP_MANIAC_ALLIN',
+        category: 'PREFLOP',
+        title: '翻前過度頻繁全押 (Preflop Over-Shoving / Jamming)',
+        description: '頻繁在翻前進行巨大超額全押，底牌範圍過度擴張。AI 將啟動自適應剝削並大幅拓寬抓詐跟注範圍，造成巨大長期期望值虧損 (-EV)。',
+        observedRate: `全押頻率約 ${(shoveRate * 100).toFixed(1)}% (${shoveCount}/${shoveOpps} 手)`,
+        gtoBaseline: '< 2.0%',
+        severity: 'HIGH',
+        recommendation: '回歸標準翻前開池尺寸 (2.0 ~ 3.0 BB)，僅在短籌碼或合適的 4-Bet / 5-Bet Jam 節點執行全押。',
+      });
+    }
+
     // Overall assessment
     let overallAssessment = '目前樣本數尚在累積中，策略大致維持平衡。';
     if (leaks.length >= 3) {

@@ -56,10 +56,11 @@ export class PreflopStrategyTable {
 
     // 7. Facing All-in Preflop
     if (node === 'FACING_ALL_IN') {
-      if (['AA', 'KK'].includes(notation)) return { raise: 1.0, call: 1.0, fold: 0.0 };
-      if (['QQ', 'AKs'].includes(notation)) return { raise: 0.0, call: 0.90, fold: 0.10 };
-      if (['JJ', 'AKo'].includes(notation)) return { raise: 0.0, call: 0.60, fold: 0.40 };
-      if (['TT', 'AQs'].includes(notation)) return { raise: 0.0, call: 0.35, fold: 0.65 };
+      if (['AA', 'KK', 'QQ', 'AKs'].includes(notation)) return { raise: 1.0, call: 1.0, fold: 0.0 };
+      if (['JJ', 'AKo'].includes(notation)) return { raise: 0.0, call: 0.85, fold: 0.15 };
+      if (['TT', 'AQs', 'AQo'].includes(notation)) return { raise: 0.0, call: 0.65, fold: 0.35 };
+      if (['99', '88', 'AJs', 'KQs'].includes(notation)) return { raise: 0.0, call: 0.40, fold: 0.60 };
+      if (['77', 'ATs', 'KJs'].includes(notation)) return { raise: 0.0, call: 0.20, fold: 0.80 };
       return { raise: 0.0, call: 0.0, fold: 1.0 };
     }
 

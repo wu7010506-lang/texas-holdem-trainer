@@ -90,8 +90,27 @@ export class ProfileDrivenStrategy implements IBotStrategy {
         }
       }
 
-      // Respect foldToThreeBet
-      if (currentBet >= bigBlind * 6) {
+      // Facing massive bet / all-in preflop vs standard 3-bet
+      if (currentBet >= bigBlind * 20) {
+        if (profile.id === 'calling_station' || profile.vpip > 0.40) {
+          if (power >= 0.50) {
+            callScore = 0.75;
+            foldScore = 0.25;
+          }
+        } else if (profile.id === 'maniac' || profile.aggression > 0.85) {
+          if (power >= 0.50) {
+            callScore = 0.50;
+            raiseScore = 0.35;
+            foldScore = 0.15;
+          }
+        } else if (power >= 0.70) {
+          // Strong hands (JJ, TT, 99, AQ, AK) call even for tighter profiles
+          callScore = 0.70;
+          foldScore = 0.30;
+        } else {
+          foldScore = Math.min(0.95, foldScore * (1 + profile.foldToThreeBet * 0.5));
+        }
+      } else if (currentBet >= bigBlind * 6) {
         foldScore = Math.min(0.95, foldScore * (1 + profile.foldToThreeBet * 0.5));
       }
     }

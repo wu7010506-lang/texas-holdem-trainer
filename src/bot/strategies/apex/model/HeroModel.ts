@@ -55,6 +55,7 @@ export class HeroModel {
   public flopStatsByTexture: Record<string, FlopTextureStats> = {};
   public turnDoubleBarrel: BayesianMetric = createMetric(0.50, 10);
   public turnFoldVsBet: BayesianMetric = createMetric(0.45, 10);
+  public preflopAllInShove: BayesianMetric = createMetric(0.02, 6);
   public riverStats: RiverSizingStats;
 
   constructor() {
@@ -126,5 +127,7 @@ export class HeroModel {
     this.riverStats.foldVsOverbet.count = 0;
     this.riverStats.foldVsLarge.opportunities = 0;
     this.riverStats.foldVsLarge.count = 0;
+    this.preflopAllInShove.opportunities = 0;
+    this.preflopAllInShove.count = 0;
   }
 }

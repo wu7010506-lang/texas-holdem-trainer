@@ -30,6 +30,9 @@ export class HeroModelStore {
         if (data.riverStats) {
           model.riverStats = data.riverStats;
         }
+        if (data.preflopAllInShove) {
+          model.preflopAllInShove = data.preflopAllInShove;
+        }
       }
     } catch (e) {
       console.warn('HeroModelStore: Failed to load hero model from localStorage, using fresh model', e);
@@ -46,6 +49,7 @@ export class HeroModelStore {
         flopStatsByTexture: model.flopStatsByTexture,
         turnDoubleBarrel: model.turnDoubleBarrel,
         turnFoldVsBet: model.turnFoldVsBet,
+        preflopAllInShove: model.preflopAllInShove,
         riverStats: model.riverStats,
       };
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));

@@ -13,6 +13,7 @@ import { ActionEVEstimator } from './ev/ActionEVEstimator';
 import { ConfidenceEstimator } from './exploit/ConfidenceEstimator';
 import { ExploitSearchEngine } from './exploit/ExploitSearchEngine';
 import { ApexTelemetryService } from './telemetry/ApexDecisionTrace';
+import { HandNotation } from '../elite/range/HandNotation';
 
 export type ApexBotMode = 'BASELINE' | 'APEX_EXPLOIT';
 
@@ -25,6 +26,7 @@ export class ApexStrategy implements BotStrategy {
   private recencyModel: RecencyModel;
   private forcedMode?: ApexBotMode;
   private customRng?: () => number;
+  private processedActionKeys: Set<string> = new Set();
 
   constructor(heroModel?: HeroModel) {
     this.baselineProvider = new BaselineStrategyProvider();
@@ -52,25 +54,37 @@ export class ApexStrategy implements BotStrategy {
     for (const a of previousActions) {
       const isHero = a.playerName === 'Hero' || a.playerId === 'hero' || a.seat === 0;
       if (isHero && a.reasoning !== 'Small Blind' && a.reasoning !== 'Big Blind') {
+        const key = `${a.handId}_${a.street}_${a.seat}_${a.action}_${a.timestamp || 0}_${a.amount || 0}`;
+        if (this.processedActionKeys.has(key)) continue;
+        this.processedActionKeys.add(key);
+
         // Record voluntary action
         if (a.street === 'PREFLOP') {
           const posStats = this.heroModel.getPreflopStats(a.position || 'BTN');
-          if (a.action === 'BET' || a.action === 'RAISE') {
+          if (a.action === 'ALL_IN') {
+            recordEvent(this.heroModel.preflopAllInShove, true);
+            recordEvent(posStats.rfi, true);
+          } else if (a.action === 'BET' || a.action === 'RAISE') {
+            recordEvent(this.heroModel.preflopAllInShove, false);
             recordEvent(posStats.rfi, true);
           } else if (a.action === 'CALL') {
+            recordEvent(this.heroModel.preflopAllInShove, false);
             recordEvent(posStats.facingOpenCall, true);
           } else if (a.action === 'FOLD') {
             recordEvent(posStats.facingThreeBetFold, true);
           }
         } else if (a.street === 'FLOP') {
           const flopStats = this.heroModel.getFlopStats('DRY');
-          if (a.action === 'BET') recordEvent(flopStats.cbet, true);
+          if (a.action === 'BET' || a.action === 'RAISE' || a.action === 'ALL_IN') recordEvent(flopStats.cbet, true);
           if (a.action === 'FOLD') {
             recordEvent(flopStats.foldVsCbet, true);
             this.recencyModel.record('FLOP', 'FLOP_CBET_FOLD', true);
           }
         } else if (a.street === 'RIVER') {
-          if (a.action === 'FOLD') {
+          if (a.action === 'ALL_IN') {
+            recordEvent(this.heroModel.riverStats.betOverbet, true);
+            recordEvent(this.heroModel.riverStats.bluffEstimate, true, 0.5);
+          } else if (a.action === 'FOLD') {
             recordEvent(this.heroModel.riverStats.foldVsLarge, true);
             recordEvent(this.heroModel.riverStats.foldVsOverbet, true);
             this.recencyModel.record('RIVER', 'RIVER_OVERFOLD', true);
@@ -99,12 +113,100 @@ export class ApexStrategy implements BotStrategy {
       return baselineDecision;
     }
 
-    // Preflop: Use baseline GTO preflop table with fast execution
+    // Preflop: Use baseline GTO preflop table with fast execution + Exploit adjustments
     if (context.street === 'PREFLOP') {
       const posStats = this.heroModel.getPreflopStats('BTN');
       const threeBetFoldRate = getPosteriorRate(posStats.facingThreeBetFold);
 
-      // Preflop Exploit: Hero overfolds to 3-bets (> 65% with sufficient sample)
+      // Preflop Exploit A: Facing Maniac All-in Shove (Widen calldown range for positive EV)
+      const isFacingShove = (
+        context.amountToCall >= context.effectiveStack * 0.6 ||
+        (context.currentBet >= context.bigBlind * 20 && context.amountToCall > 0)
+      ) && context.legalActions.canCall;
+
+      if (isFacingShove) {
+        const heroShoved = (context.previousActions || []).some(
+          (a) => (a.playerName === 'Hero' || a.playerId === 'hero' || a.seat === 0) &&
+                 a.street === 'PREFLOP' &&
+                 (a.action === 'ALL_IN' || ((a.action === 'RAISE' || a.action === 'BET') && (a.amount ?? 0) >= context.bigBlind * 20))
+        );
+
+        const shoveCount = this.heroModel.preflopAllInShove.count;
+        const shoveOpps = this.heroModel.preflopAllInShove.opportunities;
+        const shoveRate = getPosteriorRate(this.heroModel.preflopAllInShove);
+        const isManiacShove = heroShoved && (shoveCount >= 2 || (shoveOpps >= 2 && shoveRate >= 0.18));
+
+        if (isManiacShove) {
+          const notation = context.holeCards.length === 2 ? HandNotation.getHandNotation(context.holeCards[0], context.holeCards[1]) : '72o';
+          // Tier 1: Strong pocket pairs & premium broadways (~65-85% equity vs random cards)
+          const tier1 = ['AA', 'KK', 'QQ', 'JJ', 'TT', '99', '88', '77', '66', 'AKs', 'AKo', 'AQs', 'AQo', 'AJs', 'AJo', 'ATs', 'ATo'];
+          // Tier 2: Speculative pairs, suited Aces, high broadways (~56-62% equity vs random cards)
+          const tier2 = ['55', '44', '33', '22', 'A9s', 'A8s', 'A7s', 'A6s', 'A5s', 'A4s', 'A3s', 'A2s', 'A9o', 'A8o', 'KQs', 'KQo', 'KJs', 'KJo', 'KTs', 'QJs'];
+
+          const roll = this.customRng ? this.customRng() : Math.random();
+          const shouldCall = tier1.includes(notation) || (tier2.includes(notation) && roll < 0.85);
+
+          if (shouldCall) {
+            const potAfterCall = context.potSize + context.amountToCall;
+            const estimatedEquity = tier1.includes(notation) ? 0.72 : 0.60;
+            const estimatedEV = (estimatedEquity * potAfterCall - context.amountToCall) / context.bigBlind;
+
+            const ownCardsStr = context.holeCards.map(c => `${c.rank}${c.suit}`).join(' ');
+            const trace: ApexDecisionTrace = {
+              position: context.position,
+              ownHand: ownCardsStr,
+              board: '—',
+              pot: context.potSize,
+              spr: context.spr,
+              heroModelSummary: `記錄對局: ${this.heroModel.handsTracked} 手 | Hero 全押次數: ${shoveCount} (全押率: ${(shoveRate * 100).toFixed(0)}%)`,
+              modelConfidence: 'HIGH',
+              confidenceScore: 0.85,
+              candidateEVs: [
+                {
+                  actionLabel: 'Call All-in',
+                  action: 'CALL',
+                  amount: context.amountToCall,
+                  ev: estimatedEV,
+                  predictedHeroFoldRate: 0,
+                  predictedHeroCallRate: 1,
+                  predictedHeroRaiseRate: 0,
+                  equityWhenCalled: estimatedEquity,
+                },
+                {
+                  actionLabel: 'Fold',
+                  action: 'FOLD',
+                  amount: 0,
+                  ev: 0,
+                  predictedHeroFoldRate: 0,
+                  predictedHeroCallRate: 0,
+                  predictedHeroRaiseRate: 0,
+                  equityWhenCalled: 0,
+                },
+              ],
+              baselinePreferredAction: baselineDecision.action,
+              baselinePreferredEV: 0,
+              exploitPreferredAction: 'CALL',
+              exploitPreferredEV: estimatedEV,
+              expectedExploitGain: estimatedEV,
+              finalAction: 'CALL',
+              finalAmount: context.amountToCall,
+              reasonCodes: ['EXPLOIT_OVERBLUFF'],
+              mode: 'APEX_EXPLOIT',
+            };
+            ApexTelemetryService.setLatestTrace(trace);
+
+            return {
+              action: 'CALL',
+              amount: context.amountToCall,
+              reasoning: `【Apex 剝削抓暴衝全押】偵測到 Hero 翻前連續/超高頻全押 (次數: ${shoveCount} 次，全押率 ${(shoveRate * 100).toFixed(0)}%)，範圍已大幅擴張至隨機空氣牌。手牌 [${notation}] 預估勝率 ${(estimatedEquity * 100).toFixed(0)}%，預期獲利 +${estimatedEV.toFixed(1)} BB，執行寬範圍抓詐跟注！`,
+              reasonCodes: ['EXPLOIT_OVERBLUFF'],
+              debugTrace: trace,
+            };
+          }
+        }
+      }
+
+      // Preflop Exploit B: Hero overfolds to 3-bets (> 65% with sufficient sample)
       if (
         posStats.facingThreeBetFold.opportunities >= 4 &&
         threeBetFoldRate > 0.65 &&

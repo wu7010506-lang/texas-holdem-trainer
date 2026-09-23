@@ -303,4 +303,72 @@ describe('Apex Bot Strategy Suite', () => {
     expect(overbetLeak?.severity).toBe('HIGH');
     expect(overbetLeak?.recommendation).toContain('Bluff-catcher');
   });
+
+  it('Test 10: Exploits Repeated Preflop All-In Shoves by expanding calldown range to crush maniacs', () => {
+    // Simulate Hero shoving all-in preflop multiple times
+    recordEvent(heroModel.preflopAllInShove, true);
+    recordEvent(heroModel.preflopAllInShove, true);
+    heroModel.handsTracked = 2;
+
+    // Verify leak reporter detects PREFLOP_MANIAC_ALLIN
+    const report = HeroLeakReporter.generateReport(heroModel);
+    const allInLeak = report.leaks.find(l => l.id === 'PREFLOP_MANIAC_ALLIN');
+    expect(allInLeak).toBeDefined();
+    expect(allInLeak?.severity).toBe('HIGH');
+
+    // Context: Hero has open-shoved 100BB (1000 chips). Bot holds 88 (8s 8h).
+    // In standard GTO, 88 folds 100% vs 100BB jam.
+    const preflopCtx = createMockContext({
+      street: 'PREFLOP',
+      holeCards: [
+        { suit: 's', rank: '8', value: 8, id: '8s' },
+        { suit: 'h', rank: '8', value: 8, id: '8h' },
+      ],
+      communityCards: [],
+      currentBet: 1000,
+      potSize: 1015,
+      amountToCall: 1000,
+      playerStack: 1000,
+      effectiveStack: 1000,
+      bigBlind: 10,
+      legalActions: {
+        canFold: true,
+        canCheck: false,
+        canCall: true,
+        callAmount: 1000,
+        canBet: false,
+        minBet: 0,
+        maxBet: 0,
+        canRaise: false,
+        minRaise: 0,
+        maxRaise: 0,
+        canAllIn: true,
+        allInAmount: 1000,
+      },
+      previousActions: [
+        {
+          handId: 3,
+          street: 'PREFLOP',
+          seat: 0,
+          playerId: 'hero',
+          playerName: 'Hero',
+          action: 'ALL_IN',
+          amount: 1000,
+          timestamp: Date.now(),
+          potBefore: 15,
+          potAfter: 1015,
+          stackBefore: 1000,
+          stackAfter: 0,
+        },
+      ],
+    });
+
+    const decision = apex.decideAction(preflopCtx);
+    // Apex Bot should exploit the maniac by calling with 88!
+    expect(decision.action).toBe('CALL');
+    expect(decision.amount).toBe(1000);
+    expect(decision.reasoning).toContain('Apex 剝削抓暴衝全押');
+    expect(decision.reasonCodes).toContain('EXPLOIT_OVERBLUFF');
+    expect(decision.debugTrace?.mode).toBe('APEX_EXPLOIT');
+  });
 });
