@@ -113,8 +113,9 @@ export interface GameConfig {
   showHandStrength: boolean;
   showBotReasoning: boolean;
   showEstimatedEquity: boolean;
-  botType?: 'RULE_BASED' | 'ELITE';
+  botType?: 'RULE_BASED' | 'ELITE' | 'APEX';
   eliteMode?: 'BALANCED' | 'ADAPTIVE';
+  apexMode?: 'BASELINE' | 'APEX_EXPLOIT';
   randomSeed?: number;
 }
 

@@ -9,6 +9,7 @@ import { ReplayModal } from './components/modals/ReplayModal';
 import { BotEditorModal } from './components/modals/BotEditorModal';
 import { StatsModal } from './components/modals/StatsModal';
 import { SettingsModal } from './components/modals/SettingsModal';
+import { HeroLeakModal } from './components/modals/HeroLeakModal';
 import {
   Activity,
   BarChart3,
@@ -16,6 +17,7 @@ import {
   Bug,
   FileText,
   Settings,
+  ShieldAlert,
 } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -149,6 +151,16 @@ export const App: React.FC = () => {
             <span className="hidden md:inline">統計報表</span>
           </button>
 
+          {/* Hero Leak Report trigger */}
+          <button
+            onClick={() => openModal('LEAK_REPORT')}
+            className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg bg-amber-950/60 hover:bg-amber-900/70 border border-amber-800/80 text-amber-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-sm"
+            title="查看 Apex Bot 針對您的弱點診斷報告"
+          >
+            <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden md:inline">弱點診斷</span>
+          </button>
+
           {/* Settings Modal trigger */}
           <button
             onClick={() => openModal('SETTINGS')}
@@ -276,7 +288,12 @@ export const App: React.FC = () => {
             startNewHand();
           }}
           onClose={closeModal}
+          onOpenLeakReport={() => openModal('LEAK_REPORT')}
         />
+      )}
+
+      {activeModal === 'LEAK_REPORT' && (
+        <HeroLeakModal onClose={closeModal} />
       )}
     </div>
   );

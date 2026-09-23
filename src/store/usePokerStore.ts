@@ -34,7 +34,7 @@ interface PokerStore {
   isBotThinking: boolean;
   trainingMode: boolean;
   botDebugLogs: BotDebugLog[];
-  activeModal: 'NONE' | 'SETTINGS' | 'BOT_EDITOR' | 'HAND_HISTORY' | 'REPLAY' | 'STATS';
+  activeModal: 'NONE' | 'SETTINGS' | 'BOT_EDITOR' | 'HAND_HISTORY' | 'REPLAY' | 'STATS' | 'LEAK_REPORT';
 
   // Actions
   init: () => Promise<void>;
@@ -254,6 +254,9 @@ export const usePokerStore = create<PokerStore>((set, get) => {
       }
       if (newConfig.eliteMode) {
         botController.setEliteMode(newConfig.eliteMode);
+      }
+      if (newConfig.apexMode) {
+        botController.setApexMode(newConfig.apexMode);
       }
       game.setConfig(updated);
       repository.saveConfig(updated);

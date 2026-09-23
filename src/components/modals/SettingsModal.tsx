@@ -2,14 +2,16 @@ import React, { useState } from 'react';
 import { GameConfig } from '../../engine/types';
 import { RotateCcw, Save, Settings, X, Zap, ShieldAlert, Cpu } from 'lucide-react';
 import { OpponentModel } from '../../bot/strategies/elite/adaptive/OpponentModel';
+import { HeroModelStore } from '../../bot/strategies/apex/model/HeroModelStore';
 
 interface SettingsModalProps {
   config: GameConfig;
   onSave: (config: Partial<GameConfig>) => void;
   onClose: () => void;
+  onOpenLeakReport?: () => void;
 }
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, onClose }) => {
+export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, onClose, onOpenLeakReport }) => {
   const [playerCount, setPlayerCount] = useState(config.playerCount);
   const [startingStack, setStartingStack] = useState(config.startingStack);
   const [smallBlind, setSmallBlind] = useState(config.smallBlind);
@@ -17,12 +19,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
   const [botThinkTime, setBotThinkTime] = useState(config.botThinkTime);
   const [autoNextHand, setAutoNextHand] = useState(config.autoNextHand);
   const [randomSeed, setRandomSeed] = useState<number | undefined>(config.randomSeed);
-  const [botType, setBotType] = useState<'RULE_BASED' | 'ELITE'>(config.botType || 'ELITE');
+  const [botType, setBotType] = useState<'RULE_BASED' | 'ELITE' | 'APEX'>(config.botType || 'APEX');
   const [eliteMode, setEliteMode] = useState<'BALANCED' | 'ADAPTIVE'>(config.eliteMode || 'BALANCED');
+  const [apexMode, setApexMode] = useState<'BASELINE' | 'APEX_EXPLOIT'>(config.apexMode || 'APEX_EXPLOIT');
 
   const oppModel = OpponentModel.getInstance();
   const heroHands = oppModel.getStats().handsPlayed;
   const confidence = oppModel.getConfidence();
+  const apexHeroHands = HeroModelStore.load().handsTracked;
 
   const handleSave = () => {
     onSave({
@@ -34,6 +38,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
       autoNextHand,
       botType,
       eliteMode,
+      apexMode,
       randomSeed: randomSeed ? Number(randomSeed) : undefined,
     });
     onClose();
@@ -46,8 +51,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
     setBigBlind(10);
     setBotThinkTime(600);
     setAutoNextHand(false);
-    setBotType('ELITE');
+    setBotType('APEX');
     setEliteMode('BALANCED');
+    setApexMode('APEX_EXPLOIT');
     setRandomSeed(undefined);
   };
 
@@ -76,18 +82,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
               <Cpu className="w-4 h-4 text-indigo-400" />
               <span>電腦對手 AI 策略引擎</span>
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <button
                 type="button"
-                onClick={() => setBotType('RULE_BASED')}
+                onClick={() => setBotType('APEX')}
                 className={`p-2.5 rounded-xl border text-left flex flex-col gap-0.5 cursor-pointer transition-all ${
-                  botType === 'RULE_BASED'
-                    ? 'bg-slate-800 border-indigo-500 text-slate-100'
+                  botType === 'APEX'
+                    ? 'bg-amber-950/80 border-amber-500 text-amber-200 ring-1 ring-amber-500/50'
                     : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
                 }`}
               >
-                <span className="font-bold">一般 AI (Rule-Based)</span>
-                <span className="text-[10px] text-slate-400">傳統風格模型 (Nit, TAG, LAG, Calling Station)</span>
+                <div className="flex items-center gap-1 font-bold text-amber-300">
+                  <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                  <span>終極 AI (Apex Bot)</span>
+                </div>
+                <span className="text-[10px] text-slate-400">argmax EV 期望值最大化、動態貝氏推斷與弱點精準剝削</span>
               </button>
 
               <button
@@ -95,17 +104,89 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
                 onClick={() => setBotType('ELITE')}
                 className={`p-2.5 rounded-xl border text-left flex flex-col gap-0.5 cursor-pointer transition-all ${
                   botType === 'ELITE'
-                    ? 'bg-indigo-950/80 border-indigo-500 text-indigo-200'
+                    ? 'bg-indigo-950/80 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/50'
                     : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
                 }`}
               >
                 <div className="flex items-center gap-1 font-bold text-indigo-300">
-                  <Zap className="w-3.5 h-3.5 text-amber-400" />
+                  <Zap className="w-3.5 h-3.5 text-indigo-400" />
                   <span>菁英 AI (Elite V1)</span>
                 </div>
-                <span className="text-[10px] text-slate-400">GTO-Inspired 範圍對範圍、阻擋牌分析與混合策略</span>
+                <span className="text-[10px] text-slate-400">GTO-Inspired 範圍對範圍、阻擋牌分析與混合平衡策略</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setBotType('RULE_BASED')}
+                className={`p-2.5 rounded-xl border text-left flex flex-col gap-0.5 cursor-pointer transition-all ${
+                  botType === 'RULE_BASED'
+                    ? 'bg-slate-800 border-indigo-500 text-slate-100 ring-1 ring-slate-600'
+                    : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                }`}
+              >
+                <span className="font-bold">一般 AI (Rule-Based)</span>
+                <span className="text-[10px] text-slate-400">傳統風格模型 (Nit, TAG, LAG, Calling Station)</span>
               </button>
             </div>
+
+            {/* Apex Bot Sub-Settings */}
+            {botType === 'APEX' && (
+              <div className="mt-2 pt-2 border-t border-slate-800/80 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-300">Apex 決策模式：</span>
+                  <div className="flex gap-2">
+                    <label className="flex items-center gap-1.5 cursor-pointer text-slate-300">
+                      <input
+                        type="radio"
+                        name="apexMode"
+                        value="APEX_EXPLOIT"
+                        checked={apexMode === 'APEX_EXPLOIT'}
+                        onChange={() => setApexMode('APEX_EXPLOIT')}
+                        className="accent-amber-500"
+                      />
+                      <span>自適應剝削 (+EV 最大化)</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer text-slate-300">
+                      <input
+                        type="radio"
+                        name="apexMode"
+                        value="BASELINE"
+                        checked={apexMode === 'BASELINE'}
+                        onChange={() => setApexMode('BASELINE')}
+                        className="accent-amber-500"
+                      />
+                      <span>純基準模式 (Baseline Fallback)</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="bg-slate-900/90 rounded-lg p-2.5 border border-slate-800/80 grid grid-cols-3 gap-2 text-center text-[10px]">
+                  <div>
+                    <span className="text-slate-400 block">累積 Hero 樣本</span>
+                    <strong className="text-amber-300 text-xs">{apexHeroHands} 手</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">決策演算法</span>
+                    <strong className="text-slate-200">argmax E[EV(a)]</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">剝削置信調節</span>
+                    <strong className="text-emerald-400">連續貝氏收縮 + 轉移偵測</strong>
+                  </div>
+                </div>
+
+                {onOpenLeakReport && (
+                  <button
+                    type="button"
+                    onClick={onOpenLeakReport}
+                    className="w-full py-1.5 rounded-lg bg-amber-950/50 hover:bg-amber-900/60 border border-amber-800/80 text-amber-200 font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                  >
+                    <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                    <span>查看 Hero 打法弱點診斷報告 (Leak Report)</span>
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Elite Bot Sub-Settings */}
             {botType === 'ELITE' && (
