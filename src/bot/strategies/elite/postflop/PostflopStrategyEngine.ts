@@ -187,13 +187,14 @@ export class PostflopStrategyEngine {
         }
         reasonCodes.push('CHECK_BACK_MEDIUM_SHOWDOWN');
       } else {
-        // Air / weak draw -> Blocker-based Bluff Selection
-        let bluffProb = 0.0;
-        if (blockerInfo.bluffCandidateScore >= 0.65 && multiway.bluffMultiplier > 0.2) {
-          bluffProb = 0.25 * multiway.bluffMultiplier;
+        // Air / weak draw -> Blocker-based Bluff Selection scaled by Range Advantage & Board Texture
+        const baseBluff = blockerInfo.bluffCandidateScore >= 0.65 ? 0.28 : 0.10;
+        const frequencyScale = Math.max(0.4, betFrequency / 0.35);
+        let bluffProb = Math.max(0.02, Math.min(0.45, baseBluff * frequencyScale * multiway.bluffMultiplier));
+
+        if (blockerInfo.bluffCandidateScore >= 0.65) {
           reasonCodes.push('GOOD_BLUFF_BLOCKER');
         } else {
-          bluffProb = 0.05 * multiway.bluffMultiplier;
           reasonCodes.push('POOR_BLUFF_BLOCKER');
         }
 
