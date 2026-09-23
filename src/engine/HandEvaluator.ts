@@ -195,7 +195,15 @@ export class HandEvaluator {
    */
   public static evaluate(cards: Card[]): HandEvaluation {
     if (cards.length < 5) {
-      throw new Error(`At least 5 cards required for evaluation, got ${cards.length}`);
+      const sorted = [...cards].sort((a, b) => b.value - a.value);
+      const values = sorted.map((c) => c.value);
+      return {
+        handRank: HandRank.HIGH_CARD,
+        rankName: 'High Card',
+        score: [HandRank.HIGH_CARD, ...values],
+        best5: sorted,
+        description: `High Card (${cards.length} cards)`,
+      };
     }
 
     if (cards.length === 5) {

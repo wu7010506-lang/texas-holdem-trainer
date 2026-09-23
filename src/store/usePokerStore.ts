@@ -183,35 +183,42 @@ export const usePokerStore = create<PokerStore>((set, get) => {
         // Check if state changed during wait
         if (get().gameState.handComplete) break;
 
-        const decision = botController.getBotAction(state, current.seat);
+        try {
+          const decision = botController.getBotAction(state, current.seat);
 
-        // Record debug log
-        const logEntry: BotDebugLog = {
-          id: `${Date.now()}-${Math.random()}`,
-          handId: state.handId,
-          seat: current.seat,
-          playerName: current.name,
-          street: state.street,
-          decision,
-          timestamp: Date.now(),
-        };
+          // Record debug log
+          const logEntry: BotDebugLog = {
+            id: `${Date.now()}-${Math.random()}`,
+            handId: state.handId,
+            seat: current.seat,
+            playerName: current.name,
+            street: state.street,
+            decision,
+            timestamp: Date.now(),
+          };
 
-        set((s) => ({
-          botDebugLogs: [logEntry, ...s.botDebugLogs.slice(0, 49)], // Keep 50 recent logs
-        }));
+          set((s) => ({
+            botDebugLogs: [logEntry, ...s.botDebugLogs.slice(0, 49)], // Keep 50 recent logs
+          }));
 
-        // Apply bot action
-        state = game.applyAction({
-          type: decision.action,
-          amount: decision.amount,
-          reasoning: decision.reasoning,
-        });
+          // Apply bot action
+          state = game.applyAction({
+            type: decision.action,
+            amount: decision.amount,
+            reasoning: decision.reasoning,
+          });
 
-        set({ gameState: state, isBotThinking: false });
+          set({ gameState: state, isBotThinking: false });
 
-        if (state.handComplete) {
-          await get().processHandCompletion(state);
-          break;
+          if (state.handComplete) {
+            await get().processHandCompletion(state);
+            break;
+          }
+        } catch (botErr) {
+          console.error(`Error processing bot action for seat ${current.seat}:`, botErr);
+          const fallbackAction = current.currentBet >= state.currentBet ? 'CHECK' : 'FOLD';
+          state = game.applyAction({ type: fallbackAction, reasoning: '安全備用動作' });
+          set({ gameState: state, isBotThinking: false });
         }
       }
 

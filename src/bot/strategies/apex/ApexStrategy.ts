@@ -3,7 +3,7 @@ import { BotDecision, BotDecisionContext } from '../../types';
 import { Card, Street, ActionRecord } from '../../../engine/types';
 import { ApexCandidateEV, ApexDecisionTrace, ApexReasonCode } from './types';
 import { BaselineStrategyProvider } from './baseline/BaselineStrategyProvider';
-import { HeroModel, recordEvent } from './model/HeroModel';
+import { HeroModel, recordEvent, getPosteriorRate } from './model/HeroModel';
 import { HeroModelStore } from './model/HeroModelStore';
 import { RecencyModel } from './model/RecencyModel';
 import { ChangeDetector } from './model/ChangeDetector';
@@ -96,6 +96,50 @@ export class ApexStrategy implements BotStrategy {
 
     // If forced to baseline mode, return baseline directly
     if (this.forcedMode === 'BASELINE') {
+      return baselineDecision;
+    }
+
+    // Preflop: Use baseline GTO preflop table with fast execution
+    if (context.street === 'PREFLOP') {
+      const posStats = this.heroModel.getPreflopStats('BTN');
+      const threeBetFoldRate = getPosteriorRate(posStats.facingThreeBetFold);
+
+      // Preflop Exploit: Hero overfolds to 3-bets (> 65% with sufficient sample)
+      if (
+        posStats.facingThreeBetFold.opportunities >= 4 &&
+        threeBetFoldRate > 0.65 &&
+        context.amountToCall > 0 &&
+        context.playerStack > context.amountToCall * 3
+      ) {
+        const threeBetAmount = Math.min(context.playerStack, context.amountToCall * 3.2);
+        return {
+          action: 'RAISE',
+          amount: Math.round(threeBetAmount),
+          reasoning: `【Apex 翻前剝削】偵測到 Hero 面對 3-Bet 過度棄牌率 ${(threeBetFoldRate * 100).toFixed(0)}%，執行剝削性 3-Bet 加注。`,
+          reasonCodes: ['EXPLOIT_PRE_FLOP_OVERFOLD'],
+          debugTrace: {
+            position: context.position,
+            ownHand: context.holeCards.map(c => `${c.rank}${c.suit}`).join(' '),
+            board: '—',
+            pot: context.potSize,
+            spr: context.spr,
+            heroModelSummary: `記錄對局: ${this.heroModel.handsTracked} 手`,
+            modelConfidence: 'MEDIUM',
+            confidenceScore: 0.6,
+            candidateEVs: [],
+            baselinePreferredAction: baselineDecision.action,
+            baselinePreferredEV: 0,
+            exploitPreferredAction: 'RAISE',
+            exploitPreferredEV: 1.5,
+            expectedExploitGain: 1.5,
+            finalAction: 'RAISE',
+            finalAmount: Math.round(threeBetAmount),
+            reasonCodes: ['EXPLOIT_PRE_FLOP_OVERFOLD'],
+            mode: 'APEX_EXPLOIT',
+          },
+        };
+      }
+
       return baselineDecision;
     }
 

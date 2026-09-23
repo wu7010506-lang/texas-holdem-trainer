@@ -66,7 +66,7 @@ export class HeroRangeTracker {
    * Evaluates Bot's equity against this range on the current board.
    */
   public evaluateEquityVsRange(botHoleCards: [Card, Card], board: Card[]): number {
-    if (this.range.combos.length === 0) return 0.50;
+    if (this.range.combos.length === 0 || board.length < 3) return 0.50;
     const botEval = HandEvaluator.evaluate([...botHoleCards, ...board]);
 
     let totalWeight = 0;
