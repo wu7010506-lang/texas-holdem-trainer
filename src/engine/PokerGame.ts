@@ -482,7 +482,9 @@ export class PokerGame {
       playerName: player.name,
       action,
       amount,
+      position: player.position,
       potBefore: pot - amount,
+
       potAfter: pot,
       stackBefore: player.stack + amount,
       stackAfter: player.stack,

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { GameConfig } from '../../engine/types';
-import { RotateCcw, Save, Settings, X } from 'lucide-react';
+import { RotateCcw, Save, Settings, X, Zap, ShieldAlert, Cpu } from 'lucide-react';
+import { OpponentModel } from '../../bot/strategies/elite/adaptive/OpponentModel';
 
 interface SettingsModalProps {
   config: GameConfig;
@@ -16,6 +17,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
   const [botThinkTime, setBotThinkTime] = useState(config.botThinkTime);
   const [autoNextHand, setAutoNextHand] = useState(config.autoNextHand);
   const [randomSeed, setRandomSeed] = useState<number | undefined>(config.randomSeed);
+  const [botType, setBotType] = useState<'RULE_BASED' | 'ELITE'>(config.botType || 'ELITE');
+  const [eliteMode, setEliteMode] = useState<'BALANCED' | 'ADAPTIVE'>(config.eliteMode || 'BALANCED');
+
+  const oppModel = OpponentModel.getInstance();
+  const heroHands = oppModel.getStats().handsPlayed;
+  const confidence = oppModel.getConfidence();
 
   const handleSave = () => {
     onSave({
@@ -25,6 +32,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
       bigBlind,
       botThinkTime,
       autoNextHand,
+      botType,
+      eliteMode,
       randomSeed: randomSeed ? Number(randomSeed) : undefined,
     });
     onClose();
@@ -37,6 +46,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
     setBigBlind(10);
     setBotThinkTime(600);
     setAutoNextHand(false);
+    setBotType('ELITE');
+    setEliteMode('BALANCED');
     setRandomSeed(undefined);
   };
 
@@ -47,7 +58,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
         <div className="flex items-center justify-between p-4 border-b border-slate-800">
           <div className="flex items-center gap-2">
             <Settings className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-base font-bold text-slate-100">遊戲與牌桌規則設定</h2>
+            <h2 className="text-base font-bold text-slate-100">遊戲與 AI 規則設定</h2>
           </div>
           <button
             onClick={onClose}
@@ -58,7 +69,95 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ config, onSave, on
         </div>
 
         {/* Content */}
-        <div className="p-5 flex flex-col gap-4 overflow-y-auto">
+        <div className="p-5 flex flex-col gap-4 overflow-y-auto max-h-[75vh]">
+          {/* AI Strategy Engine Selection */}
+          <div className="bg-slate-950/70 p-3.5 rounded-xl border border-slate-800 flex flex-col gap-2.5">
+            <label className="text-slate-200 font-bold flex items-center gap-1.5">
+              <Cpu className="w-4 h-4 text-indigo-400" />
+              <span>電腦對手 AI 策略引擎</span>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setBotType('RULE_BASED')}
+                className={`p-2.5 rounded-xl border text-left flex flex-col gap-0.5 cursor-pointer transition-all ${
+                  botType === 'RULE_BASED'
+                    ? 'bg-slate-800 border-indigo-500 text-slate-100'
+                    : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                }`}
+              >
+                <span className="font-bold">一般 AI (Rule-Based)</span>
+                <span className="text-[10px] text-slate-400">傳統風格模型 (Nit, TAG, LAG, Calling Station)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setBotType('ELITE')}
+                className={`p-2.5 rounded-xl border text-left flex flex-col gap-0.5 cursor-pointer transition-all ${
+                  botType === 'ELITE'
+                    ? 'bg-indigo-950/80 border-indigo-500 text-indigo-200'
+                    : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center gap-1 font-bold text-indigo-300">
+                  <Zap className="w-3.5 h-3.5 text-amber-400" />
+                  <span>菁英 AI (Elite V1)</span>
+                </div>
+                <span className="text-[10px] text-slate-400">GTO-Inspired 範圍對範圍、阻擋牌分析與混合策略</span>
+              </button>
+            </div>
+
+            {/* Elite Bot Sub-Settings */}
+            {botType === 'ELITE' && (
+              <div className="mt-2 pt-2 border-t border-slate-800/80 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-300">菁英策略模式：</span>
+                  <div className="flex gap-2">
+                    <label className="flex items-center gap-1.5 cursor-pointer text-slate-300">
+                      <input
+                        type="radio"
+                        name="eliteMode"
+                        value="BALANCED"
+                        checked={eliteMode === 'BALANCED'}
+                        onChange={() => setEliteMode('BALANCED')}
+                        className="accent-indigo-500"
+                      />
+                      <span>平衡模式 (純 GTO-Baseline)</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer text-slate-300">
+                      <input
+                        type="radio"
+                        name="eliteMode"
+                        value="ADAPTIVE"
+                        checked={eliteMode === 'ADAPTIVE'}
+                        onChange={() => setEliteMode('ADAPTIVE')}
+                        className="accent-indigo-500"
+                      />
+                      <span>自適應模式 (Hero 數據剝削)</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="bg-slate-900/90 rounded-lg p-2.5 border border-slate-800/80 grid grid-cols-3 gap-2 text-center text-[10px]">
+                  <div>
+                    <span className="text-slate-400 block">目前 Hero 樣本</span>
+                    <strong className="text-slate-200 text-xs">{heroHands} 手</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">模型信心水準</span>
+                    <strong className={confidence.tier === 'HIGH' ? 'text-emerald-400' : 'text-amber-400'}>
+                      {confidence.tier === 'VERY_LOW' ? '不足 (<100手)' : confidence.tier === 'LOW' ? '低' : confidence.tier === 'MEDIUM' ? '中等' : '高'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">最大策略調整</span>
+                    <strong className="text-indigo-300 text-xs">15% (嚴格鎖定)</strong>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Table Size */}
           <div>
             <label className="text-slate-300 font-semibold block mb-1">

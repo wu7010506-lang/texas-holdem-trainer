@@ -63,6 +63,8 @@ export interface BotDecision {
   action: PlayerActionType;
   amount?: number;
   reasoning: string;
+  reasonCodes?: string[];
+  debugTrace?: any;
   debugScores?: {
     foldScore: number;
     callScore: number;
@@ -70,6 +72,7 @@ export interface BotDecision {
     randomRoll: number;
   };
 }
+
 
 export interface BotProfile {
   id: string;

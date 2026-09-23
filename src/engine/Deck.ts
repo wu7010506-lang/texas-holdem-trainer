@@ -62,4 +62,9 @@ export class Deck {
   public getCards(): Card[] {
     return [...this.cards];
   }
+
+  public static createStandardDeck(): Deck {
+    return new Deck();
+  }
 }
+

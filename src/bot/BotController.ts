@@ -1,21 +1,41 @@
-import { GameState, PlayerAction } from '../engine/types';
+import { GameState } from '../engine/types';
 import { BotDecision, BotDecisionContext, BotProfile, IBotStrategy } from './types';
 import { BoardAnalyzer } from './BoardAnalyzer';
 import { HandStrength } from './HandStrength';
 import { PotOddsCalculator } from './PotOddsCalculator';
 import { DEFAULT_PROFILES } from './defaultProfiles';
 import { ProfileDrivenStrategy } from './ProfileDrivenStrategy';
+import { EliteStrategyV1, EliteBotMode } from './strategies/elite/EliteStrategyV1';
+import { RuleBasedStrategy } from './strategies/ruleBased/RuleBasedStrategy';
 
 export class BotController {
   private strategy: IBotStrategy;
   private customProfiles: Map<string, BotProfile> = new Map();
+  private eliteStrategy: EliteStrategyV1;
+  private ruleBasedStrategy: RuleBasedStrategy;
+  private botEngineType: 'RULE_BASED' | 'ELITE' = 'ELITE';
 
   constructor(strategy?: IBotStrategy) {
     this.strategy = strategy || new ProfileDrivenStrategy();
+    this.eliteStrategy = new EliteStrategyV1('BALANCED');
+    this.ruleBasedStrategy = new RuleBasedStrategy();
   }
+
+  public setBotEngineType(type: 'RULE_BASED' | 'ELITE'): void {
+    this.botEngineType = type;
+  }
+
 
   public setStrategy(strategy: IBotStrategy): void {
     this.strategy = strategy;
+  }
+
+  public getEliteStrategy(): EliteStrategyV1 {
+    return this.eliteStrategy;
+  }
+
+  public setEliteMode(mode: EliteBotMode): void {
+    this.eliteStrategy.setMode(mode);
   }
 
   public registerProfile(profile: BotProfile): void {
@@ -97,7 +117,14 @@ export class BotController {
   public getBotAction(gameState: GameState, seat: number, rng?: () => number): BotDecision {
     const context = this.buildContext(gameState, seat);
     const player = gameState.players[seat];
+
+    if (this.botEngineType === 'ELITE' || player.botProfileId === 'elite') {
+      if (rng) this.eliteStrategy.setRng(rng);
+      return this.eliteStrategy.decideAction(context);
+    }
+
     const profile = this.getProfile(player.botProfileId);
     return this.strategy.decideAction(context, profile, rng);
   }
+
 }

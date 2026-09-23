@@ -247,12 +247,19 @@ export const usePokerStore = create<PokerStore>((set, get) => {
     },
 
     updateConfig: (newConfig: Partial<GameConfig>) => {
-      const { game, repository, config } = get();
+      const { game, repository, config, botController } = get();
       const updated = { ...config, ...newConfig };
+      if (newConfig.botType) {
+        botController.setBotEngineType(newConfig.botType);
+      }
+      if (newConfig.eliteMode) {
+        botController.setEliteMode(newConfig.eliteMode);
+      }
       game.setConfig(updated);
       repository.saveConfig(updated);
       set({ config: updated });
     },
+
 
     saveProfile: (profile: BotProfile) => {
       const { profiles, botController, repository } = get();

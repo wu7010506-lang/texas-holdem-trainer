@@ -91,7 +91,9 @@ export interface ActionRecord {
   playerName: string;
   action: PlayerActionType;
   amount: number;
+  position?: string;
   potBefore: number;
+
   potAfter: number;
   stackBefore: number;
   stackAfter: number;
@@ -111,8 +113,11 @@ export interface GameConfig {
   showHandStrength: boolean;
   showBotReasoning: boolean;
   showEstimatedEquity: boolean;
+  botType?: 'RULE_BASED' | 'ELITE';
+  eliteMode?: 'BALANCED' | 'ADAPTIVE';
   randomSeed?: number;
 }
+
 
 export interface GameState {
   handId: number;

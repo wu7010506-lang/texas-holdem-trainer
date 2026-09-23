@@ -1,7 +1,29 @@
 import { BotProfile } from './types';
 
 export const DEFAULT_PROFILES: Record<string, BotProfile> = {
+  elite: {
+    id: 'elite',
+    name: '菁英 AI (Elite V1)',
+    description: 'GTO-Inspired 範圍對範圍策略、阻擋牌分析、離散混合尺寸與動態平衡/自適應。',
+    vpip: 0.24,
+    pfr: 0.20,
+    threeBetFrequency: 0.09,
+    aggression: 0.65,
+    bluffFrequency: 0.14,
+    foldToThreeBet: 0.50,
+    continuationBet: 0.65,
+    foldToCBet: 0.45,
+    checkRaiseFrequency: 0.10,
+    riverBluffFrequency: 0.12,
+    betSizing: {
+      small: 0.33,
+      medium: 0.75,
+      large: 1.25,
+      overbet: 1.25,
+    },
+  },
   nit: {
+
     id: 'nit',
     name: '岩石型 (Nit)',
     description: '極度保守且規避風險。只玩優質頂級牌，極少詐唬，面對加注容易棄牌。',
