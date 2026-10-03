@@ -1,7 +1,7 @@
 import { BotStrategy } from '../BotStrategy';
 import { BotDecision, BotDecisionContext } from '../../types';
-import { Card, Street, ActionRecord } from '../../../engine/types';
-import { ApexCandidateEV, ApexDecisionTrace, ApexReasonCode } from './types';
+import { Card, ActionRecord } from '../../../engine/types';
+import { ApexCandidateEV, ApexDecisionTrace } from './types';
 import { BaselineStrategyProvider } from './baseline/BaselineStrategyProvider';
 import { HeroModel, recordEvent, getPosteriorRate } from './model/HeroModel';
 import { HeroModelStore } from './model/HeroModelStore';
@@ -14,6 +14,7 @@ import { ConfidenceEstimator } from './exploit/ConfidenceEstimator';
 import { ExploitSearchEngine } from './exploit/ExploitSearchEngine';
 import { ApexTelemetryService } from './telemetry/ApexDecisionTrace';
 import { HandNotation } from '../elite/range/HandNotation';
+import { clampBotDecision } from '../../clampBotDecision';
 
 export type ApexBotMode = 'BASELINE' | 'APEX_EXPLOIT';
 
@@ -122,6 +123,10 @@ export class ApexStrategy implements BotStrategy {
   }
 
   public decideAction(context: BotDecisionContext): BotDecision {
+    return clampBotDecision(this.decideRawAction(context), context.legalActions);
+  }
+
+  private decideRawAction(context: BotDecisionContext): BotDecision {
     // 1. Observe and update Hero model from recent actions
     if (context.previousActions && context.previousActions.length > 0) {
       this.observeActions(context.previousActions);
@@ -337,7 +342,7 @@ export class ApexStrategy implements BotStrategy {
 
     // 5. Evaluate Candidate EVs
     const candidateEVs: ApexCandidateEV[] = [];
-    const equityVsGeneral = heroTracker.evaluateEquityVsRange(botHoleCards, board);
+    const equityVsGeneral = heroTracker.evaluateEquityVsRange(botHoleCards, board, Math.max(1, context.activePlayers - 1));
 
     if (context.amountToCall === 0) {
       // Free action: Can Check or Bet
@@ -375,7 +380,7 @@ export class ApexStrategy implements BotStrategy {
       // Facing bet: Hero has bet/raised, Bayesian-condition Hero's range
       const betFraction = context.potSize > 0 ? context.amountToCall / context.potSize : 0.5;
       heroTracker.updateOnAction('BET', betFraction, board);
-      const equityVsBet = heroTracker.evaluateEquityVsRange(botHoleCards, board);
+      const equityVsBet = heroTracker.evaluateEquityVsRange(botHoleCards, board, Math.max(1, context.activePlayers - 1));
 
       // Facing bet: Can Fold, Call, or Raise
       const foldEV = ActionEVEstimator.computeFoldEV();

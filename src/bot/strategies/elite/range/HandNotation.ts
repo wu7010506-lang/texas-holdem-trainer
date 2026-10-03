@@ -1,5 +1,5 @@
-import { Card, Rank, Suit } from '../../../../engine/types';
-import { createCard, RANKS, SUITS } from '../../../../engine/Card';
+import { Card, Rank } from '../../../../engine/types';
+import { createCard, SUITS } from '../../../../engine/Card';
 import { WeightedCombo } from './WeightedCombo';
 
 export class HandNotation {

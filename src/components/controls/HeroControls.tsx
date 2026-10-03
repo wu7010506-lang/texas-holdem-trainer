@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { GameState, LegalActions, PlayerAction } from '../../engine/types';
-import { Coins, Play, RefreshCw } from 'lucide-react';
+import { useState } from "react";
+import { GameState, PlayerAction } from "../../engine/types";
 
 interface HeroControlsProps {
   gameState: GameState;
@@ -11,258 +10,162 @@ interface HeroControlsProps {
   isBotThinking: boolean;
 }
 
-export const HeroControls: React.FC<HeroControlsProps> = ({
-  gameState,
+export function HeroControls({
+  gameState: state,
   heroSeat,
   onAction,
   onNextHand,
   onRebuy,
   isBotThinking,
-}) => {
-  const hero = gameState.players[heroSeat];
-  const isHeroTurn = gameState.currentPlayerSeat === heroSeat && !gameState.handComplete;
-  const legal: LegalActions = gameState.legalActions || {
-    canFold: false,
-    canCheck: false,
-    canCall: false,
-    callAmount: 0,
-    canBet: false,
-    minBet: 0,
-    maxBet: 0,
-    canRaise: false,
-    minRaise: 0,
-    maxRaise: 0,
-    canAllIn: false,
-    allInAmount: 0,
-  };
-
-  const isBettor = legal.canBet;
-  const isRaiser = legal.canRaise;
-  const minAmount = isBettor ? legal.minBet : legal.minRaise;
-  const maxAmount = isBettor ? legal.maxBet : legal.maxRaise;
-
-  const [betAmount, setBetAmount] = useState<number>(minAmount);
-
-  // Sync bet amount when turn or street changes
-  useEffect(() => {
-    if (minAmount > 0) {
-      setBetAmount(minAmount);
-    }
-  }, [minAmount, gameState.street, gameState.currentBet]);
-
-  // Handle quick pot percentage clicks
-  const applyPotFraction = (fraction: number) => {
-    const pot = gameState.pot;
-    const computed = isBettor
-      ? Math.round(pot * fraction)
-      : Math.round(gameState.currentBet + pot * fraction);
-    const clamped = Math.max(minAmount, Math.min(maxAmount, computed));
-    setBetAmount(clamped);
-  };
-
-  if (!hero) return null;
-
-  // Hand completed view
-  if (gameState.handComplete) {
-    const isHeroBroke = hero.stack <= 0;
+}: HeroControlsProps) {
+  const hero = state.players[heroSeat];
+  const key = `${state.handId}:${state.street}:${state.currentBet}:${hero?.currentBet}:${state.currentPlayerSeat}`;
+  if (state.handComplete)
     return (
-      <div className="w-full max-w-4xl mx-auto p-4 bg-slate-900/90 border border-slate-700/80 rounded-2xl shadow-2xl flex items-center justify-between gap-4 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold text-slate-300">
-            第 {gameState.handId} 手結束。
-          </span>
-          {isHeroBroke && (
-            <span className="text-rose-400 text-sm font-bold animate-pulse">
-              您的籌碼已歸零！
-            </span>
-          )}
+      <div className="action-panel hand-finished">
+        <div>
+          <span className="dock-eyebrow">下一手，重新出發</span>
+          <h2>
+            {hero.stack <= 0 ? "籌碼用完了，補充後再練習。" : "這一手已結束。"}
+          </h2>
         </div>
-
-        <div className="flex items-center gap-3">
-          {isHeroBroke && (
-            <button
-              onClick={onRebuy}
-              className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm shadow-lg flex items-center gap-2 cursor-pointer transition-colors"
-            >
-              <RefreshCw className="w-4 h-4" />
-              補充 100 BB 籌碼
-            </button>
-          )}
-
-          <button
-            onClick={onNextHand}
-            className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm shadow-lg flex items-center gap-2 cursor-pointer transition-transform hover:scale-105"
-          >
-            <Play className="w-4 h-4 fill-slate-950" />
-            發下一手牌 (Next Hand)
-          </button>
+        <button
+          className="button button-primary next-hand"
+          onClick={hero.stack <= 0 ? onRebuy : onNextHand}
+        >
+          {hero.stack <= 0 ? "補充籌碼並發牌" : "發下一手"}
+          <span aria-hidden="true">↗</span>
+        </button>
+      </div>
+    );
+  if (state.currentPlayerSeat !== heroSeat || isBotThinking)
+    return (
+      <div className="action-panel waiting-panel">
+        <span className="thinking-indicator">
+          <i />
+          <i />
+          <i />
+        </span>
+        <div>
+          <span className="dock-eyebrow">
+            {hero.folded ? "你已棄牌" : hero.allIn ? "你已全押" : "牌局進行中"}
+          </span>
+          <h2>等待對手行動</h2>
+          <p>下一個決定，交給你。</p>
         </div>
       </div>
     );
-  }
+  return <ActionChoices key={key} state={state} onAction={onAction} />;
+}
 
-  const disabled = !isHeroTurn || isBotThinking;
-
+function ActionChoices({
+  state,
+  onAction,
+}: {
+  state: GameState;
+  onAction: (action: PlayerAction) => void;
+}) {
+  const legal = state.legalActions!;
+  const min = legal.canBet ? legal.minBet : legal.minRaise;
+  const max = legal.canBet ? legal.maxBet : legal.maxRaise;
+  const [draft, setDraft] = useState(String(min));
+  const number = Number(draft);
+  const amount = Math.max(
+    min,
+    Math.min(max, Number.isFinite(number) ? Math.round(number) : min),
+  );
+  const canSize = legal.canBet || legal.canRaise;
+  const applyFraction = (fraction: number) => {
+    const target = legal.canBet
+      ? state.pot * fraction
+      : state.currentBet + (state.pot + legal.callAmount) * fraction;
+    setDraft(String(Math.max(min, Math.min(max, Math.round(target)))));
+  };
   return (
-    <div className="w-full max-w-4xl mx-auto p-4 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-2xl flex flex-col gap-3 backdrop-blur-md">
-      {/* Sizing presets and slider if betting or raising is legal */}
-      {(isBettor || isRaiser) && (
-        <div className={`flex flex-col gap-2 p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 ${disabled ? 'opacity-40 pointer-events-none' : ''}`}>
-          <div className="flex items-center justify-between gap-2">
-            {/* Quick Sizing Buttons */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <button
-                type="button"
-                onClick={() => applyPotFraction(0.33)}
-                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold cursor-pointer"
-              >
-                1/3 底池
+    <div className="action-panel">
+      <div className="action-heading">
+        <span className="dock-eyebrow">你的回合</span>
+        <span>
+          {legal.canCheck
+            ? state.street === "RIVER" ? "可以過牌攤牌" : "可以免費看下一張牌"
+            : `跟注需 ${legal.callAmount.toLocaleString()} 籌碼`}
+        </span>
+      </div>
+      {canSize && (
+        <div className="sizing-controls">
+          <div className="sizing-presets">
+            {[0.5, 0.75, 1].map((fraction, i) => (
+              <button key={fraction} onClick={() => applyFraction(fraction)}>
+                {["½ 底池", "¾ 底池", "滿池"][i]}
               </button>
-              <button
-                type="button"
-                onClick={() => applyPotFraction(0.5)}
-                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold cursor-pointer"
-              >
-                1/2 底池
-              </button>
-              <button
-                type="button"
-                onClick={() => applyPotFraction(0.66)}
-                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold cursor-pointer"
-              >
-                2/3 底池
-              </button>
-              <button
-                type="button"
-                onClick={() => applyPotFraction(0.75)}
-                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold cursor-pointer"
-              >
-                3/4 底池
-              </button>
-              <button
-                type="button"
-                onClick={() => applyPotFraction(1.0)}
-                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold cursor-pointer"
-              >
-                滿池 (Pot)
-              </button>
-              <button
-                type="button"
-                onClick={() => setBetAmount(maxAmount)}
-                className="px-2.5 py-1 rounded bg-rose-900/60 hover:bg-rose-800/80 text-rose-200 text-xs font-bold cursor-pointer"
-              >
-                全押 (All-in)
-              </button>
-            </div>
-
-            {/* Direct Number Input */}
-            <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1">
-              <Coins className="w-3.5 h-3.5 text-amber-400" />
-              <input
-                type="number"
-                min={minAmount}
-                max={maxAmount}
-                value={betAmount}
-                onChange={(e) => setBetAmount(Number(e.target.value))}
-                className="w-20 bg-transparent text-right font-bold text-sm text-amber-300 focus:outline-none"
-              />
-            </div>
+            ))}
           </div>
-
-          {/* Sizing Range Slider */}
           <input
+            aria-label={legal.canBet ? "下注籌碼" : "加注至籌碼"}
+            type="number"
+            min={min}
+            max={max}
+            step="1"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={() => setDraft(String(amount))}
+          />
+          <input
+            aria-label="調整下注金額"
             type="range"
-            min={minAmount}
-            max={maxAmount}
-            step={gameState.currentBet > 0 ? 5 : 10}
-            value={betAmount}
-            onChange={(e) => setBetAmount(Number(e.target.value))}
-            className="w-full accent-amber-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+            min={min}
+            max={max}
+            step="1"
+            value={amount}
+            onChange={(e) => setDraft(e.target.value)}
           />
         </div>
       )}
-
-      {/* Main Action Buttons Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-        {/* Fold Button */}
+      <div className="action-buttons">
         <button
-          onClick={() => onAction({ type: 'FOLD' })}
-          disabled={disabled || !legal.canFold}
-          className={`py-3 rounded-xl font-bold text-sm shadow-md transition-all cursor-pointer ${
-            disabled || !legal.canFold
-              ? 'bg-slate-800/50 text-slate-500 cursor-not-allowed'
-              : 'bg-rose-700 hover:bg-rose-600 text-white shadow-rose-900/20 active:scale-95'
-          }`}
+          className="button button-fold"
+          disabled={!legal.canFold}
+          onClick={() => onAction({ type: "FOLD" })}
         >
-          棄牌 (Fold)
+          棄牌<small>FOLD</small>
         </button>
-
-        {/* Check Button */}
         <button
-          onClick={() => onAction({ type: 'CHECK' })}
-          disabled={disabled || !legal.canCheck}
-          className={`py-3 rounded-xl font-bold text-sm shadow-md transition-all cursor-pointer ${
-            disabled || !legal.canCheck
-              ? 'bg-slate-800/50 text-slate-500 cursor-not-allowed'
-              : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/20 active:scale-95'
-          }`}
+          className="button button-call"
+          disabled={!legal.canCheck && !legal.canCall}
+          onClick={() =>
+            onAction(
+              legal.canCheck
+                ? { type: "CHECK" }
+                : { type: "CALL", amount: legal.callAmount },
+            )
+          }
         >
-          過牌 (Check)
+          {legal.canCheck ? "過牌" : "跟注"}
+          <small>
+            {legal.canCheck ? "CHECK" : legal.callAmount.toLocaleString()}
+          </small>
         </button>
-
-        {/* Call Button */}
-        <button
-          onClick={() => onAction({ type: 'CALL', amount: legal.callAmount })}
-          disabled={disabled || !legal.canCall}
-          className={`py-3 rounded-xl font-bold text-sm shadow-md transition-all cursor-pointer ${
-            disabled || !legal.canCall
-              ? 'bg-slate-800/50 text-slate-500 cursor-not-allowed'
-              : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20 active:scale-95'
-          }`}
-        >
-          跟注 (Call) {legal.callAmount > 0 ? legal.callAmount : ''}
-        </button>
-
-        {/* Bet or Raise Button */}
-        {isBettor ? (
+        {canSize && (
           <button
-            onClick={() => onAction({ type: 'BET', amount: betAmount })}
-            disabled={disabled || !legal.canBet}
-            className={`py-3 rounded-xl font-bold text-sm shadow-md transition-all cursor-pointer ${
-              disabled || !legal.canBet
-                ? 'bg-slate-800/50 text-slate-500 cursor-not-allowed'
-                : 'bg-amber-600 hover:bg-amber-500 text-slate-950 font-black shadow-amber-900/20 active:scale-95'
-            }`}
+            className="button button-primary"
+            onClick={() =>
+              onAction({ type: legal.canBet ? "BET" : "RAISE", amount })
+            }
           >
-            下注 (Bet) {betAmount}
-          </button>
-        ) : (
-          <button
-            onClick={() => onAction({ type: 'RAISE', amount: betAmount })}
-            disabled={disabled || !legal.canRaise}
-            className={`py-3 rounded-xl font-bold text-sm shadow-md transition-all cursor-pointer ${
-              disabled || !legal.canRaise
-                ? 'bg-slate-800/50 text-slate-500 cursor-not-allowed'
-                : 'bg-amber-600 hover:bg-amber-500 text-slate-950 font-black shadow-amber-900/20 active:scale-95'
-            }`}
-          >
-            加注 (Raise) {betAmount}
+            {legal.canBet ? "下注" : "加注至"}
+            <small>{amount.toLocaleString()}</small>
           </button>
         )}
-
-        {/* All-In Button */}
         <button
-          onClick={() => onAction({ type: 'ALL_IN', amount: legal.allInAmount })}
-          disabled={disabled || !legal.canAllIn}
-          className={`py-3 rounded-xl font-bold text-sm shadow-md transition-all cursor-pointer col-span-2 sm:col-span-1 ${
-            disabled || !legal.canAllIn
-              ? 'bg-slate-800/50 text-slate-500 cursor-not-allowed'
-              : 'bg-purple-700 hover:bg-purple-600 text-white shadow-purple-900/20 active:scale-95'
-          }`}
+          className="button button-allin"
+          disabled={!legal.canAllIn}
+          onClick={() =>
+            onAction({ type: "ALL_IN", amount: legal.allInAmount })
+          }
         >
-          全押 All-In ({legal.allInAmount})
+          全押<small>ALL IN</small>
         </button>
       </div>
     </div>
   );
-};
+}

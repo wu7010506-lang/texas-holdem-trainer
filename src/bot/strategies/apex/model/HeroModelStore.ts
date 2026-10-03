@@ -1,4 +1,4 @@
-import { HeroModel, BayesianMetric } from './HeroModel';
+import { HeroModel } from './HeroModel';
 
 const STORAGE_KEY = 'apex_bot_hero_model_v1';
 

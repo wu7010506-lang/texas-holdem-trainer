@@ -37,6 +37,12 @@ export interface HandStrengthInfo {
 }
 
 export interface BotDecisionContext {
+  handId?: number;
+  selfSeat?: number;
+  ownCurrentBet?: number;
+  ownTotalBet?: number;
+  opponents?: PublicOpponent[];
+  foldedContributions?: number[];
   holeCards: Card[];
   communityCards: Card[];
   position: string;
@@ -57,6 +63,17 @@ export interface BotDecisionContext {
   boardTexture: BoardTextureInfo;
   handStrength: HandStrengthInfo;
   legalActions: LegalActions;
+}
+
+/** Deliberate allowlist: no hole cards, lastAction reasoning, or engine references. */
+export interface PublicOpponent {
+  id: string;
+  seat: number;
+  position: string;
+  stack: number;
+  currentBet: number;
+  totalBetThisHand: number;
+  allIn: boolean;
 }
 
 export interface BotDecision {

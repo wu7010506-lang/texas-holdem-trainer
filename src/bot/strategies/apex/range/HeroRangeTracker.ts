@@ -3,7 +3,7 @@ import { HandRange, WeightedCombo } from '../../elite/range/WeightedCombo';
 import { RangeEstimator } from '../../elite/range/RangeEstimator';
 import { ActionLikelihoodModel } from './ActionLikelihoodModel';
 import { HeroModel } from '../model/HeroModel';
-import { HandEvaluator } from '../../../../engine/HandEvaluator';
+import { RangeEquityEvaluator } from '../../elite/equity/RangeEquityEvaluator';
 
 export class HeroRangeTracker {
   private range: HandRange;
@@ -65,28 +65,7 @@ export class HeroRangeTracker {
   /**
    * Evaluates Bot's equity against this range on the current board.
    */
-  public evaluateEquityVsRange(botHoleCards: [Card, Card], board: Card[]): number {
-    if (this.range.combos.length === 0 || board.length < 3) return 0.50;
-    const botEval = HandEvaluator.evaluate([...botHoleCards, ...board]);
-
-    let totalWeight = 0;
-    let winWeight = 0;
-    let tieWeight = 0;
-
-    for (const combo of this.range.combos) {
-      if (combo.weight <= 0.0001) continue;
-      const heroEval = HandEvaluator.evaluate([...combo.cards, ...board]);
-      const cmp = HandEvaluator.compareScores(botEval.score, heroEval.score);
-
-      totalWeight += combo.weight;
-      if (cmp > 0) {
-        winWeight += combo.weight;
-      } else if (cmp === 0) {
-        tieWeight += combo.weight;
-      }
-    }
-
-    if (totalWeight <= 0) return 0.50;
-    return (winWeight + tieWeight * 0.5) / totalWeight;
+  public evaluateEquityVsRange(botHoleCards: [Card, Card], board: Card[], opponents = 1): number {
+    return RangeEquityEvaluator.calculate(botHoleCards, this.range, board, 250, opponents).equity;
   }
 }

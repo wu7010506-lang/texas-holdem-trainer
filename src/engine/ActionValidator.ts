@@ -1,4 +1,4 @@
-import { LegalActions, PlayerAction, PlayerActionType, PlayerState } from './types';
+import { LegalActions, PlayerAction, PlayerState } from './types';
 
 export class ActionValidator {
   /**
@@ -28,6 +28,7 @@ export class ActionValidator {
     }
 
     const amountToCall = currentBet - player.currentBet;
+    const raiseRights = !player.acted || player.raiseReopenAt === undefined || currentBet >= player.raiseReopenAt;
     const canCheck = amountToCall === 0;
     const canFold = true; // Can always fold if facing a bet; even if can check, folding is technically allowed
 
@@ -54,7 +55,7 @@ export class ActionValidator {
     if (currentBet > 0) {
       // Player needs more stack than just calling to raise
       const maxTotal = player.currentBet + player.stack;
-      if (maxTotal > currentBet) {
+      if (maxTotal > currentBet && raiseRights) {
         canRaise = true;
         // Standard rule: Min raise is currentBet + max(bigBlind, lastRaiseAmount)
         const raiseIncrement = Math.max(bigBlind, lastRaiseAmount);
@@ -70,7 +71,7 @@ export class ActionValidator {
       }
     }
 
-    const canAllIn = player.stack > 0;
+    const canAllIn = player.stack > 0 && (raiseRights || player.currentBet + player.stack <= currentBet);
     const allInAmount = player.currentBet + player.stack;
 
     return {
@@ -100,6 +101,10 @@ export class ActionValidator {
     bigBlind: number
   ): { valid: boolean; normalizedAction?: PlayerAction; reason?: string } {
     const legal = this.getLegalActions(player, currentBet, lastRaiseAmount, bigBlind);
+
+    if (action.amount !== undefined && (!Number.isFinite(action.amount) || action.amount < 0)) {
+      return { valid: false, reason: 'Chip amount must be a finite non-negative number.' };
+    }
 
     switch (action.type) {
       case 'FOLD':

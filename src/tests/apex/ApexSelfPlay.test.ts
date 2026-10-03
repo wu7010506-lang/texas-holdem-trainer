@@ -13,7 +13,7 @@ describe('Apex Bot Self-Play & Simulation Tests', () => {
     expect(report.apexVPIP).toBeGreaterThan(0.12);
     expect(report.apexVPIP).toBeLessThan(0.45);
     expect(report.apexPFR).toBeGreaterThan(0.08);
-  });
+  }, 20000); // Full multiway equity is intentionally more expensive than heads-up heuristics.
 
   it('runs multi-seed simulation tournaments: 0 crashes and robust performance across varying tables', () => {
     const seeds = [123, 777, 8888];
@@ -31,5 +31,5 @@ describe('Apex Bot Self-Play & Simulation Tests', () => {
     const overallBB100 = totalProfitBB / (totalHands / 100);
     console.log(`[Multi-Seed Tournament 總計] 手數: ${totalHands} | 總獲利: ${totalProfitBB.toFixed(1)} BB (${overallBB100.toFixed(2)} BB/100)`);
     expect(totalHands).toBe(150);
-  });
+  }, 20000);
 });

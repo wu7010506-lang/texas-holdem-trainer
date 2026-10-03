@@ -2,6 +2,7 @@ import { BotStrategy } from '../BotStrategy';
 import { BotDecision, BotDecisionContext, BotProfile } from '../../types';
 import { ProfileDrivenStrategy } from '../../ProfileDrivenStrategy';
 import { DEFAULT_PROFILES } from '../../defaultProfiles';
+import { clampBotDecision } from '../../clampBotDecision';
 
 export class RuleBasedStrategy implements BotStrategy {
   public name = 'RuleBasedStrategy';
@@ -19,6 +20,6 @@ export class RuleBasedStrategy implements BotStrategy {
   }
 
   public decideAction(context: BotDecisionContext): BotDecision {
-    return this.innerStrategy.decideAction(context, this.defaultProfile);
+    return clampBotDecision(this.innerStrategy.decideAction(context, this.defaultProfile), context.legalActions);
   }
 }

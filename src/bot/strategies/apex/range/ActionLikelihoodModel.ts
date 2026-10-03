@@ -1,4 +1,4 @@
-import { Card, Street } from '../../../../engine/types';
+import { Card } from '../../../../engine/types';
 import { HandEvaluator } from '../../../../engine/HandEvaluator';
 import { HeroModel, getPosteriorRate } from '../model/HeroModel';
 

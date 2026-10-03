@@ -9,7 +9,6 @@ export class ProfileDrivenStrategy implements IBotStrategy {
     profile: BotProfile,
     rng: () => number = Math.random
   ): BotDecision {
-    const { legalActions } = context;
 
     if (context.street === 'PREFLOP') {
       return this.decidePreflop(context, profile, rng);

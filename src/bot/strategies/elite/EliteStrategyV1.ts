@@ -1,12 +1,13 @@
-import { BotStrategy, ActionDistribution } from '../BotStrategy';
+import { BotStrategy } from '../BotStrategy';
 import { BotDecision, BotDecisionContext } from '../../types';
 import { PreflopRangeEngine } from './preflop/PreflopRangeEngine';
 import { PostflopStrategyEngine } from './postflop/PostflopStrategyEngine';
 import { RangeEstimator } from './range/RangeEstimator';
 import { RangeUpdater } from './range/RangeUpdater';
 import { EliteTraceStore } from './debug/EliteDecisionTrace';
-import { EliteDecisionTrace, ReasonCode } from './types';
+import { EliteDecisionTrace } from './types';
 import { SeededRng } from './random/SeededRng';
+import { clampBotDecision } from '../../clampBotDecision';
 
 export type EliteBotMode = 'BALANCED' | 'ADAPTIVE';
 
@@ -40,6 +41,10 @@ export class EliteStrategyV1 implements BotStrategy {
   }
 
   public decideAction(context: BotDecisionContext): BotDecision {
+    return clampBotDecision(this.decideRawAction(context), context.legalActions);
+  }
+
+  private decideRawAction(context: BotDecisionContext): BotDecision {
     const rng = this.customRng || Math.random;
 
     if (context.street === 'PREFLOP') {

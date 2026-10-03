@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-03",
+  "handsPerStrategy": 18000,
+  "seeds": [104729, 130363, 155921, 196613],
+  "simulationsPerSearch": 900,
+  "expertBBPer100": 61.122777777777785,
+  "baselineBBPer100": 22.070555555555547,
+  "improvementBBPer100": 39.05222222222218,
+  "pairedMargin95": 20.498200666808316,
+  "illegalActions": 0,
+  "bySeat": [
+    {"seat":0,"expertBBPer100":77.49333333333325,"baselineBBPer100":46.70666666666666},
+    {"seat":1,"expertBBPer100":0.723333333333336,"baselineBBPer100":-22.53666666666671},
+    {"seat":2,"expertBBPer100":83.82666666666664,"baselineBBPer100":-39.54999999999999},
+    {"seat":3,"expertBBPer100":77.33000000000004,"baselineBBPer100":51.01000000000001},
+    {"seat":4,"expertBBPer100":47.75000000000001,"baselineBBPer100":37.14333333333332},
+    {"seat":5,"expertBBPer100":79.61333333333337,"baselineBBPer100":59.650000000000006}
+  ],
+  "stressAttackerResults": [
+    {"attack":"always-shove","hands":180,"heroBBPer100":-2294.6666666666665,"earlyBBPer100":-628.5555555555553,"lateBBPer100":-3960.777777777778},
+    {"attack":"small-raise","hands":180,"heroBBPer100":-349.11111111111114,"earlyBBPer100":472.55555555555554,"lateBBPer100":-1170.7777777777776},
+    {"attack":"never-fold","hands":180,"heroBBPer100":-781.1666666666666,"earlyBBPer100":54.333333333333385,"lateBBPer100":-1616.6666666666665}
+  ],
+  "limitation": "Paired normal-approximation interval, not cluster-adjusted; artificial fixed-stack opponents, no human/GTO strength claim. Stress early/late partitions use different deals and are not a causal adaptation comparison."
+}

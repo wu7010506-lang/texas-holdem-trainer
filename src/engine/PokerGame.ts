@@ -1,14 +1,4 @@
-import {
-  ActionRecord,
-  Card,
-  GameConfig,
-  GameState,
-  HandEvaluation,
-  HandWinner,
-  PlayerAction,
-  PlayerState,
-  Street,
-} from './types';
+import { GameConfig, GameState, HandEvaluation, PlayerAction, PlayerState } from './types';
 import { Deck } from './Deck';
 import { ActionValidator } from './ActionValidator';
 import { PotManager } from './PotManager';
@@ -42,6 +32,7 @@ export class PokerGame {
       }));
 
     this.state = {
+      bigBlind: this.config.bigBlind,
       handId: 0,
       street: 'PREFLOP',
       dealerSeat: 0,
@@ -72,6 +63,15 @@ export class PokerGame {
 
   public setConfig(config: Partial<GameConfig>): void {
     this.config = { ...this.config, ...config };
+    this.state.bigBlind = this.config.bigBlind;
+  }
+
+  /** Rebuy is an engine mutation, never a mutation of the defensive UI snapshot. */
+  public rebuyPlayer(seat: number): GameState {
+    const player = this.state.players[seat];
+    if (!this.state.handComplete || !player || player.stack > 0) return this.getState();
+    player.stack = this.config.startingStack;
+    return this.getState();
   }
 
   /**
@@ -136,6 +136,7 @@ export class PokerGame {
       p.folded = p.stack <= 0;
       p.allIn = false;
       p.acted = false;
+      p.raiseReopenAt = undefined;
       p.lastAction = undefined;
     });
 
@@ -277,7 +278,7 @@ export class PokerGame {
         this.state.currentBet = targetTotal;
         this.state.minimumRaise = targetTotal + raiseIncrement;
         this.resetOtherPlayersActed(player.seat);
-        this.recordAction(player, 'RAISE', targetTotal, action.reasoning);
+        this.recordAction(player, 'RAISE', targetTotal, action.reasoning, additionalChips);
         break;
       }
 
@@ -295,17 +296,19 @@ export class PokerGame {
           if (raiseDiff >= this.state.lastRaiseAmount) {
             this.state.lastRaiseAmount = raiseDiff;
             this.state.minimumRaise = allInTotal + raiseDiff;
+            this.resetOtherPlayersActed(player.seat);
           }
           this.state.currentBet = allInTotal;
-          this.resetOtherPlayersActed(player.seat);
+          this.state.minimumRaise = allInTotal + Math.max(this.config.bigBlind, this.state.lastRaiseAmount);
         }
 
         player.currentBet = allInTotal;
-        this.recordAction(player, 'ALL_IN', allInTotal, action.reasoning);
+        this.recordAction(player, 'ALL_IN', allInTotal, action.reasoning, additionalChips);
         break;
       }
     }
 
+    player.raiseReopenAt = this.state.currentBet + Math.max(this.config.bigBlind, this.state.lastRaiseAmount);
     this.updatePots();
 
     // Check if betting round or hand is complete
@@ -347,6 +350,7 @@ export class PokerGame {
     this.state.players.forEach((p) => {
       p.currentBet = 0;
       p.acted = false;
+      p.raiseReopenAt = undefined;
       p.lastAction = undefined;
     });
     this.state.currentBet = 0;
@@ -471,7 +475,8 @@ export class PokerGame {
     player: PlayerState,
     action: any,
     amount: number,
-    reasoning?: string
+    reasoning?: string,
+    chipsMoved: number = amount
   ): void {
     const pot = this.state.players.reduce((sum, p) => sum + p.totalBetThisHand, 0);
     this.state.actionHistory.push({
@@ -483,10 +488,10 @@ export class PokerGame {
       action,
       amount,
       position: player.position,
-      potBefore: pot - amount,
+      potBefore: pot - chipsMoved,
 
       potAfter: pot,
-      stackBefore: player.stack + amount,
+      stackBefore: player.stack + chipsMoved,
       stackAfter: player.stack,
       reasoning,
       timestamp: Date.now(),

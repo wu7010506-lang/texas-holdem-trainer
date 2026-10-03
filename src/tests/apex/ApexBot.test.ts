@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ApexStrategy } from '../../bot/strategies/apex/ApexStrategy';
-import { HeroModel, recordEvent, createMetric, getPosteriorRate } from '../../bot/strategies/apex/model/HeroModel';
+import { HeroModel, recordEvent } from '../../bot/strategies/apex/model/HeroModel';
 import { ChangeDetector } from '../../bot/strategies/apex/model/ChangeDetector';
 import { ConfidenceEstimator } from '../../bot/strategies/apex/exploit/ConfidenceEstimator';
 import { ActionLikelihoodModel } from '../../bot/strategies/apex/range/ActionLikelihoodModel';

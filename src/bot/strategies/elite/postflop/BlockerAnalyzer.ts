@@ -22,7 +22,7 @@ export class BlockerAnalyzer {
   public static analyze(
     holeCards: Card[],
     board: Card[],
-    oppRange: HandRange
+    _oppRange: HandRange
   ): BlockerAnalysisResult {
     if (holeCards.length < 2) {
       return {
@@ -39,7 +39,6 @@ export class BlockerAnalyzer {
     const c2 = holeCards[1];
     const v1 = this.rankValues[c1.rank];
     const v2 = this.rankValues[c2.rank];
-    const maxHoleRank = Math.max(v1, v2);
 
     const boardRanks = board.map((c) => this.rankValues[c.rank]);
     const maxBoardRank = Math.max(...boardRanks, 0);

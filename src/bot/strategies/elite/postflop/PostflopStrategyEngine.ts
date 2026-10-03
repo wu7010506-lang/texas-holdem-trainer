@@ -31,7 +31,6 @@ export class PostflopStrategyEngine {
       legalActions,
       potSize,
       playerStack,
-      effectiveStack,
       amountToCall,
       spr,
       potOdds,
@@ -51,7 +50,7 @@ export class PostflopStrategyEngine {
     const blockerInfo = BlockerAnalyzer.analyze(holeCards, communityCards, oppRange);
 
     // 4. Equity Calculation (Hand vs Opponent Range)
-    const eqResult = RangeEquityEvaluator.calculate(holeCards, oppRange, communityCards, 250);
+    const eqResult = RangeEquityEvaluator.calculate(holeCards, oppRange, communityCards, 250, Math.max(1, activePlayers - 1));
     const equity = eqResult.equity;
 
     // 5. Multiway Adjustment

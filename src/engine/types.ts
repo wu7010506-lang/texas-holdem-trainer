@@ -65,6 +65,7 @@ export interface PlayerState {
   folded: boolean;
   allIn: boolean;
   acted: boolean;
+  raiseReopenAt?: number; // Minimum current wager that reopens this player's raise rights.
   position: string; // "BTN", "SB", "BB", "UTG", "HJ", "CO", etc.
   botProfileId?: string;
   lastAction?: PlayerAction;
@@ -113,7 +114,7 @@ export interface GameConfig {
   showHandStrength: boolean;
   showBotReasoning: boolean;
   showEstimatedEquity: boolean;
-  botType?: 'RULE_BASED' | 'ELITE' | 'APEX';
+  botType?: 'RULE_BASED' | 'ELITE' | 'APEX' | 'EXPERT';
   eliteMode?: 'BALANCED' | 'ADAPTIVE';
   apexMode?: 'BASELINE' | 'APEX_EXPLOIT';
   randomSeed?: number;
@@ -121,6 +122,7 @@ export interface GameConfig {
 
 
 export interface GameState {
+  bigBlind?: number;
   handId: number;
   street: Street;
   dealerSeat: number;

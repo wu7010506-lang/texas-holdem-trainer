@@ -1,46 +1,22 @@
-import React from 'react';
-import { Card } from '../../engine/types';
-import { PlayingCard } from './PlayingCard';
+import { Card } from "../../engine/types";
+import { PlayingCard } from "./PlayingCard";
 
-interface CommunityCardsProps {
+export function CommunityCards({
+  cards,
+  highlightCardIds = new Set<string>(),
+}: {
   cards: Card[];
   highlightCardIds?: Set<string>;
-}
-
-export const CommunityCards: React.FC<CommunityCardsProps> = ({
-  cards,
-  highlightCardIds = new Set(),
-}) => {
-  const totalSlots = 5;
-  const slots = Array.from({ length: totalSlots });
-
+}) {
   return (
-    <div className="flex items-center justify-center gap-2 p-3 bg-slate-900/60 backdrop-blur-md rounded-2xl border border-emerald-500/20 shadow-2xl">
-      {slots.map((_, index) => {
-        const card = cards[index];
-        const isHighlighted = card ? highlightCardIds.has(card.id) : false;
-
-        if (card) {
-          return (
-            <PlayingCard
-              key={card.id}
-              card={card}
-              highlighted={isHighlighted}
-              size="md"
-            />
-          );
-        }
-
-        // Empty placeholder slot
-        return (
-          <div
-            key={`empty-slot-${index}`}
-            className="w-14 h-20 rounded-lg border-2 border-dashed border-emerald-600/30 bg-emerald-950/20 flex flex-col items-center justify-center text-emerald-500/40 text-xs font-medium"
-          >
-            <span>{index < 3 ? 'FLOP' : index === 3 ? 'TURN' : 'RIVER'}</span>
-          </div>
-        );
-      })}
+    <div className="community-cards" aria-label="公共牌">
+      {Array.from({ length: 5 }, (_, i) => (
+        <PlayingCard
+          key={cards[i]?.id ?? `empty-${i}`}
+          card={cards[i]}
+          highlighted={cards[i] ? highlightCardIds.has(cards[i].id) : false}
+        />
+      ))}
     </div>
   );
-};
+}

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { EquityCalculator } from '../bot/EquityCalculator';
 import { parseCards } from '../engine/Card';
-import { DEFAULT_PROFILES } from '../bot/defaultProfiles';
+
 import { PokerGame } from '../engine/PokerGame';
 import { GameConfig } from '../engine/types';
 
@@ -30,18 +30,12 @@ describe('EquityCalculator Rigorous Audit & Verification', () => {
     // Opponent holds Ts 8c -> Straight
     // Even against random hands, if Hero only has 9-high / no pair, and board has broadway straight,
     // let's give opponent a board where anyone has a better hand
-    const heroCards = parseCards('2c 3d');
-    const board = parseCards('Ah Kh Qh Jh 9h'); // Board has flush
     // Hero cannot beat board flush with 2c 3d, but wait! If everyone plays the board, it would be a tie.
     // To make Hero strictly drawing dead to a loss:
     // Board: Ah Kh Qh Jh 8h (Flush). Opponent is in Range of having Th or any heart,
     // Or let's test River exact enumeration against an opponent with made full house vs Hero's flush:
-    const heroCardsFlush = parseCards('2s 3s');
-    const boardFH = parseCards('Ah Ad As Kd Kc'); // Full house on board: Aces full of Kings
     // Hero with 2s 3s plays Aces full of Kings with kicker Kd
     // If opponent has AA or KK, opponent has Quads:
-    const heroDeadCards = parseCards('2c 3c');
-    const boardDead = parseCards('Ks Qd Jc Th 9s'); // Straight on board: K-Q-J-T-9
     // If opponent holds Ace -> Ace-high straight beats Hero's King-high straight!
     // To be 100% dead: Hero holds 7h 2c on board As Ks Qs Js 9c.
     // If opponent has Ts -> Straight.
