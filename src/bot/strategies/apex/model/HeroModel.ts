@@ -24,6 +24,7 @@ export interface PositionPreflopStats {
   rfi: BayesianMetric;
   facingOpenCall: BayesianMetric;
   facingOpenThreeBet: BayesianMetric;
+  facingOpenFold: BayesianMetric;
   facingThreeBetFold: BayesianMetric;
   facingThreeBetCall: BayesianMetric;
   facingThreeBetFourBet: BayesianMetric;
@@ -65,6 +66,7 @@ export class HeroModel {
         rfi: createMetric(pos === 'BTN' ? 0.45 : pos === 'UTG' ? 0.16 : 0.25, 12),
         facingOpenCall: createMetric(0.20, 8),
         facingOpenThreeBet: createMetric(0.08, 8),
+        facingOpenFold: createMetric(pos === 'BB' ? 0.50 : 0.65, 8),
         facingThreeBetFold: createMetric(0.55, 8),
         facingThreeBetCall: createMetric(0.35, 8),
         facingThreeBetFourBet: createMetric(0.10, 8),
@@ -116,6 +118,7 @@ export class HeroModel {
       p.rfi.opportunities = 0; p.rfi.count = 0;
       p.facingOpenCall.opportunities = 0; p.facingOpenCall.count = 0;
       p.facingOpenThreeBet.opportunities = 0; p.facingOpenThreeBet.count = 0;
+      p.facingOpenFold.opportunities = 0; p.facingOpenFold.count = 0;
       p.facingThreeBetFold.opportunities = 0; p.facingThreeBetFold.count = 0;
     }
     for (const tex of Object.keys(this.flopStatsByTexture)) {

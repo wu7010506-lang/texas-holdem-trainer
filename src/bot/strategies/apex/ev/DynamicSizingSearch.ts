@@ -23,17 +23,25 @@ export class DynamicSizingSearch {
     board: Card[],
     heroRangeTracker: HeroRangeTracker,
     heroModel: HeroModel,
-    boardTextureKey = 'DRY'
+    boardTextureKey = 'DRY',
+    activeOpponents = 1,
+    minBet = 10,
+    spr = 5.0
   ): SizingSearchResult {
-    const minBet = 2; // 1 BB
     const candidates: ApexCandidateEV[] = [];
 
-    // Define candidate fractions: 33%, 75%, 125%, and All-in
+    // Define candidate fractions based on texture and SPR:
+    // Standard: 33%, 75%, 125%
+    // If SPR <= 2.2, add 50% commitment sizing
     const sizingConfigs = [
       { fraction: 0.33, label: 'Bet 33%' },
       { fraction: 0.75, label: 'Bet 75%' },
       { fraction: 1.25, label: 'Bet 125%' },
     ];
+
+    if (spr <= 2.2 && spr > 0.8) {
+      sizingConfigs.push({ fraction: 0.50, label: 'Commit 50%' });
+    }
 
     const equityVsGeneral = heroRangeTracker.evaluateEquityVsRange(botHoleCards, board);
 
@@ -65,6 +73,7 @@ export class DynamicSizingSearch {
           predictedFoldRate: response.foldRate,
           predictedCallRate: response.callRate,
           predictedRaiseRate: response.raiseRate,
+          activeOpponents,
         },
         betAmount,
         config.label
@@ -98,6 +107,7 @@ export class DynamicSizingSearch {
           predictedFoldRate: allInResponse.foldRate,
           predictedCallRate: allInResponse.callRate,
           predictedRaiseRate: 0, // Cannot be raised if all-in
+          activeOpponents,
         },
         playerStack,
         'All-in',

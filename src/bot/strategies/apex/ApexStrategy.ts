@@ -60,18 +60,40 @@ export class ApexStrategy implements BotStrategy {
 
         // Record voluntary action
         if (a.street === 'PREFLOP') {
+          const preflopRaisesBefore = previousActions.filter(
+            prev => prev.handId === a.handId &&
+                    prev.street === 'PREFLOP' &&
+                    prev.seat !== a.seat &&
+                    prev.timestamp <= a.timestamp &&
+                    (prev.action === 'RAISE' || (prev.action === 'BET' && (prev.amount ?? 0) > 10) || prev.action === 'ALL_IN')
+          ).length;
+
           const posStats = this.heroModel.getPreflopStats(a.position || 'BTN');
           if (a.action === 'ALL_IN') {
             recordEvent(this.heroModel.preflopAllInShove, true);
             recordEvent(posStats.rfi, true);
           } else if (a.action === 'BET' || a.action === 'RAISE') {
             recordEvent(this.heroModel.preflopAllInShove, false);
-            recordEvent(posStats.rfi, true);
+            if (preflopRaisesBefore === 0) {
+              recordEvent(posStats.rfi, true);
+            } else if (preflopRaisesBefore === 1) {
+              recordEvent(posStats.facingOpenThreeBet, true);
+            } else if (preflopRaisesBefore >= 2) {
+              recordEvent(posStats.facingThreeBetFourBet, true);
+            }
           } else if (a.action === 'CALL') {
             recordEvent(this.heroModel.preflopAllInShove, false);
-            recordEvent(posStats.facingOpenCall, true);
+            if (preflopRaisesBefore <= 1) {
+              recordEvent(posStats.facingOpenCall, true);
+            } else {
+              recordEvent(posStats.facingThreeBetCall, true);
+            }
           } else if (a.action === 'FOLD') {
-            recordEvent(posStats.facingThreeBetFold, true);
+            if (preflopRaisesBefore <= 1) {
+              recordEvent(posStats.facingOpenFold, true);
+            } else {
+              recordEvent(posStats.facingThreeBetFold, true);
+            }
           }
         } else if (a.street === 'FLOP') {
           const flopStats = this.heroModel.getFlopStats('DRY');
@@ -242,6 +264,53 @@ export class ApexStrategy implements BotStrategy {
         };
       }
 
+      // Preflop Exploit C: Blind Steal against Overfolding Blinds
+      const isLatePosition = context.position === 'BTN' || context.position === 'CO' || context.position === 'SB';
+      const isUnopened = context.amountToCall <= context.bigBlind && context.currentBet <= context.bigBlind;
+      const bbStats = this.heroModel.getPreflopStats('BB');
+      const bbFoldToSteal = getPosteriorRate(bbStats.facingOpenFold);
+
+      if (
+        isLatePosition &&
+        isUnopened &&
+        bbStats.facingOpenFold.opportunities >= 3 &&
+        bbFoldToSteal > 0.62 &&
+        baselineDecision.action === 'FOLD' &&
+        (context.legalActions.canRaise || context.legalActions.canBet)
+      ) {
+        const notation = context.holeCards.length === 2 ? HandNotation.getHandNotation(context.holeCards[0], context.holeCards[1]) : '72o';
+        const isSemiPlayable = notation.endsWith('s') || ['A', 'K', 'Q', 'J'].some(r => notation.includes(r)) || ['98o', '87o', '76o'].includes(notation);
+        if (isSemiPlayable) {
+          const stealAmount = Math.max(context.legalActions.minRaise, Math.round(context.bigBlind * 2.2));
+          return {
+            action: context.legalActions.canRaise ? 'RAISE' : 'BET',
+            amount: stealAmount,
+            reasoning: `【Apex 翻前偷盲剝削】偵測到大盲 (BB) 面對開局過度棄牌率 ${(bbFoldToSteal * 100).toFixed(0)}%，在位置優勢持 [${notation}] 執行剝削性偷盲加注。`,
+            reasonCodes: ['EXPLOIT_BLIND_STEAL'],
+            debugTrace: {
+              position: context.position,
+              ownHand: context.holeCards.map(c => `${c.rank}${c.suit}`).join(' '),
+              board: '—',
+              pot: context.potSize,
+              spr: context.spr,
+              heroModelSummary: `記錄對局: ${this.heroModel.handsTracked} 手 | BB 棄牌率: ${(bbFoldToSteal * 100).toFixed(0)}%`,
+              modelConfidence: 'MEDIUM',
+              confidenceScore: 0.65,
+              candidateEVs: [],
+              baselinePreferredAction: baselineDecision.action,
+              baselinePreferredEV: 0,
+              exploitPreferredAction: 'RAISE',
+              exploitPreferredEV: 1.2,
+              expectedExploitGain: 1.2,
+              finalAction: context.legalActions.canRaise ? 'RAISE' : 'BET',
+              finalAmount: stealAmount,
+              reasonCodes: ['EXPLOIT_BLIND_STEAL'],
+              mode: 'APEX_EXPLOIT',
+            },
+          };
+        }
+      }
+
       return baselineDecision;
     }
 
@@ -259,6 +328,13 @@ export class ApexStrategy implements BotStrategy {
       this.heroModel
     );
 
+    const activeOpponents = Math.max(1, context.activePlayers - 1);
+    const boardTextureKey = context.boardTexture?.isPaired
+      ? 'PAIRED'
+      : (context.boardTexture?.wetnessScore ?? 0) > 0.5
+      ? 'WET'
+      : 'DRY';
+
     // 5. Evaluate Candidate EVs
     const candidateEVs: ApexCandidateEV[] = [];
     const equityVsGeneral = heroTracker.evaluateEquityVsRange(botHoleCards, board);
@@ -275,10 +351,11 @@ export class ApexStrategy implements BotStrategy {
         predictedFoldRate: 0,
         predictedCallRate: 1.0,
         predictedRaiseRate: 0,
+        activeOpponents,
       });
       candidateEVs.push(checkEV);
 
-      // Search discrete bet sizings: 33%, 75%, 125%, All-in
+      // Search discrete bet sizings: 33%, 75%, 125%, SPR-commitment, All-in
       const sizingSearch = DynamicSizingSearch.search(
         context.potSize,
         0,
@@ -287,7 +364,11 @@ export class ApexStrategy implements BotStrategy {
         botHoleCards,
         board,
         heroTracker,
-        this.heroModel
+        this.heroModel,
+        boardTextureKey,
+        activeOpponents,
+        context.legalActions.minBet || 10,
+        context.spr
       );
       candidateEVs.push(...sizingSearch.candidates);
     } else {
@@ -310,6 +391,7 @@ export class ApexStrategy implements BotStrategy {
         predictedFoldRate: 0,
         predictedCallRate: 1.0,
         predictedRaiseRate: 0,
+        activeOpponents,
       });
       candidateEVs.push(callEV);
 
@@ -323,7 +405,11 @@ export class ApexStrategy implements BotStrategy {
           botHoleCards,
           board,
           heroTracker,
-          this.heroModel
+          this.heroModel,
+          boardTextureKey,
+          activeOpponents,
+          context.legalActions.minRaise || 20,
+          context.spr
         );
         candidateEVs.push(...raiseSizingSearch.candidates);
       }
@@ -402,9 +488,57 @@ export class ApexStrategy implements BotStrategy {
       reasoning += ` 回退基準 (Baseline Fallback)：樣本信心度 ${(confidence.score * 100).toFixed(0)}% 尚不足或剝削收益極小，執行 GTO-Inspired 平衡動作 [${baselineDecision.action}]。`;
     }
 
+    // 8. Legal action clamping and safety verification
+    let finalAction = exploitResult.finalAction as any;
+    let finalAmount = exploitResult.finalAmount;
+
+    if (finalAction === 'CHECK' && !context.legalActions.canCheck) {
+      finalAction = context.legalActions.canCall ? 'CALL' : 'FOLD';
+      finalAmount = context.legalActions.callAmount;
+    } else if (finalAction === 'CALL') {
+      if (!context.legalActions.canCall && context.legalActions.canCheck) {
+        finalAction = 'CHECK';
+        finalAmount = 0;
+      } else {
+        finalAmount = context.legalActions.callAmount;
+      }
+    } else if (finalAction === 'BET') {
+      if (!context.legalActions.canBet) {
+        if (context.legalActions.canRaise) {
+          finalAction = 'RAISE';
+          finalAmount = Math.max(context.legalActions.minRaise, Math.min(context.legalActions.maxRaise, finalAmount ?? context.legalActions.minRaise));
+        } else if (context.legalActions.canCheck) {
+          finalAction = 'CHECK';
+          finalAmount = 0;
+        } else {
+          finalAction = 'CALL';
+          finalAmount = context.legalActions.callAmount;
+        }
+      } else {
+        finalAmount = Math.max(context.legalActions.minBet, Math.min(context.legalActions.maxBet, finalAmount ?? context.legalActions.minBet));
+      }
+    } else if (finalAction === 'RAISE') {
+      if (!context.legalActions.canRaise) {
+        if (context.legalActions.canCall) {
+          finalAction = 'CALL';
+          finalAmount = context.legalActions.callAmount;
+        } else {
+          finalAction = 'FOLD';
+          finalAmount = 0;
+        }
+      } else {
+        finalAmount = Math.max(context.legalActions.minRaise, Math.min(context.legalActions.maxRaise, finalAmount ?? context.legalActions.minRaise));
+      }
+    } else if (finalAction === 'ALL_IN') {
+      finalAmount = context.legalActions.allInAmount;
+    }
+
+    trace.finalAction = finalAction;
+    trace.finalAmount = finalAmount;
+
     return {
-      action: exploitResult.finalAction as any,
-      amount: exploitResult.finalAmount,
+      action: finalAction,
+      amount: finalAmount,
       reasoning,
       reasonCodes: exploitResult.reasonCodes,
       debugTrace: trace,

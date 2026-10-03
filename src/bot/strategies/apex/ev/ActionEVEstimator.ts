@@ -11,6 +11,7 @@ export interface EVContext {
   predictedFoldRate: number;
   predictedCallRate: number;
   predictedRaiseRate: number;
+  activeOpponents?: number;
 }
 
 export class ActionEVEstimator {
@@ -70,7 +71,7 @@ export class ActionEVEstimator {
   }
 
   /**
-   * Computes EV for a proposed bet or raise sizing
+   * Computes EV for a proposed bet or raise sizing with multiway awareness
    */
   public static computeBetEV(
     ctx: EVContext,
@@ -79,23 +80,24 @@ export class ActionEVEstimator {
     isAllIn = false
   ): ApexCandidateEV {
     const b = Math.min(betAmount, ctx.playerStack);
-    const F = ctx.predictedFoldRate;
-    const C = ctx.predictedCallRate;
-    const R = ctx.predictedRaiseRate;
+    const oppCount = Math.max(1, ctx.activeOpponents || 1);
 
-    // EV if Hero folds: Bot immediately collects the current pot
-    const evFold = F * ctx.pot;
+    // In multiway pots, all opponents must fold for a bluff to win uncontested
+    const effectiveFoldRate = oppCount > 1 ? Math.pow(ctx.predictedFoldRate, oppCount) : ctx.predictedFoldRate;
+    const effectiveRaiseRate = 1.0 - Math.pow(1.0 - ctx.predictedRaiseRate, oppCount);
+    const effectiveCallRate = Math.max(0, 1.0 - effectiveFoldRate - effectiveRaiseRate);
 
-    // EV if Hero calls:
-    // Pot after Hero calls = pot + 2*b (or pot + b + call)
-    const potWhenCalled = ctx.pot + b * 2;
+    // EV if opponents fold: Bot immediately collects the current pot
+    const evFold = effectiveFoldRate * ctx.pot;
+
+    // EV if an opponent calls:
+    const potWhenCalled = ctx.pot + b * (1 + (oppCount > 1 ? 1.3 : 1.0));
     const netReturnWhenCalled = ctx.equityWhenCalled * potWhenCalled - b;
-    const evCall = C * netReturnWhenCalled;
+    const evCall = effectiveCallRate * netReturnWhenCalled;
 
-    // EV if Hero raises:
-    // If Bot folds to raise, Bot loses b. If Bot has monster equity, loss is mitigated.
+    // EV if an opponent raises:
     const raiseLoss = b * (1.0 - ctx.equityVsGeneralRange * 0.5);
-    const evRaise = -R * raiseLoss;
+    const evRaise = -effectiveRaiseRate * raiseLoss;
 
     const totalEV = evFold + evCall + evRaise;
 
@@ -104,9 +106,9 @@ export class ActionEVEstimator {
       action: isAllIn ? 'ALL_IN' : (ctx.toCall > 0 ? 'RAISE' : 'BET'),
       amount: b,
       ev: totalEV,
-      predictedHeroFoldRate: F,
-      predictedHeroCallRate: C,
-      predictedHeroRaiseRate: R,
+      predictedHeroFoldRate: effectiveFoldRate,
+      predictedHeroCallRate: effectiveCallRate,
+      predictedHeroRaiseRate: effectiveRaiseRate,
       equityWhenCalled: ctx.equityWhenCalled,
     };
   }
